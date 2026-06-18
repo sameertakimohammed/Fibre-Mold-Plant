@@ -1,0 +1,97 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fmp
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env (copy .env.example to .env first)}"
+      POSTGRES_DB: fmp
+    volumes:
+      - fmp_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fmp -d fmp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 1g
+    cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: "${APP_ENV:-production}"
+      DATABASE_URL: "postgresql+psycopg://fmp:${DB_PASSWORD:?DB_PASSWORD must be set in .env}@db:5432/fmp"
+      SECRET_KEY: "${SECRET_KEY:?SECRET_KEY must be set in .env (generate one with python secrets.token_urlsafe 48)}"
+      FIRST_ADMIN_USERNAME: "${ADMIN_USERNAME:?ADMIN_USERNAME must be set in .env}"
+      FIRST_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set in .env}"
+      FIRST_ADMIN_NAME: "Plant Administrator"
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    mem_limit: 1g
+    cpus: "1.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── Nightly database backup sidecar ────────────────────────────────────────
+  # prodrigestivill/postgres-backup-local runs pg_dump on a schedule and prunes
+  # old dumps by the KEEP_* retention below. Dumps land in ./backups on the host
+  # (bind mount) so they're easy to copy off-box. Uses the SAME DB creds as the
+  # db service (DB_PASSWORD from .env).
+  #
+  # OFF-BOX COPY (do this — a backup on the same disk is not a backup):
+  #   Use Windows Task Scheduler to run, e.g. nightly:
+  #     robocopy "<repo>\backups" "\\NAS\fmp-backups" /MIR /R:2 /W:5
+  #   or to OneDrive:
+  #     robocopy "<repo>\backups" "%OneDrive%\fmp-backups" /MIR /R:2 /W:5
+  #
+  # RESTORE (gunzip a dump and pipe into psql in the running db container):
+  #   gunzip -c "backups/daily/fmp-YYYYMMDD-HHMMSS.sql.gz" | \
+  #     docker exec -i fmp-app-db-1 psql -U fmp -d fmp
+  #   (stop the app container first; restore into an empty/clean DB.)
+  db-backup:
+    image: prodrigestivill/postgres-backup-local:16
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: fmp
+      POSTGRES_USER: fmp
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env (copy .env.example to .env first)}"
+      # Nightly at 02:00 (container TZ). Cron-style schedule.
+      SCHEDULE: "@daily"
+      # Retention: keep 7 daily, 4 weekly, 6 monthly dumps.
+      BACKUP_KEEP_DAYS: "${BACKUP_KEEP_DAYS:-7}"
+      BACKUP_KEEP_WEEKS: "${BACKUP_KEEP_WEEKS:-4}"
+      BACKUP_KEEP_MONTHS: "${BACKUP_KEEP_MONTHS:-6}"
+      # pg_dump options: gzip-compressed plain SQL.
+      POSTGRES_EXTRA_OPTS: "-Z6"
+      HEALTHCHECK_PORT: "8080"
+    volumes:
+      # Host bind mount so dumps are visible on the plant PC for off-box copy.
+      - ./backups:/backups
+    mem_limit: 512m
+    cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  fmp_pgdata:

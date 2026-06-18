@@ -1,0 +1,19 @@
+Alembic migrations for the Fibre Mold Plant backend.
+
+The database URL is read from app settings (app.core.config.settings.database_url)
+in env.py — do NOT put a URL in alembic.ini.
+
+Common commands (run from the backend/ directory, or pass -c <path>/alembic.ini):
+
+  alembic upgrade head            # apply all pending migrations
+  alembic revision --autogenerate -m "describe change"
+  alembic current                 # show the DB's current revision
+  alembic history                 # list revisions
+  alembic stamp head              # mark DB as at head WITHOUT running migrations
+
+At container start, entrypoint.sh runs an adopt-or-upgrade sequence:
+if a legacy pre-Alembic DB is detected (users table exists, alembic_version
+does not) it stamps the baseline, then always runs `alembic upgrade head`.
+
+To create a new schema change: edit the models, then autogenerate a revision
+and review it before committing.

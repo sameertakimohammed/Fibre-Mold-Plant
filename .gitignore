@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+*.db
+.env
+node_modules/
+dist/
+static/
+*.log
+
+# Python virtualenvs (machine-specific, large — never commit)
+.venv/
+venv/
+.pytest_cache/
+
+# Nightly db-backup sidecar output + any DB dumps (real production data — never commit)
+backups/daily/
+backups/weekly/
+backups/monthly/
+backups/last/
+backups/*.sql.gz
+backups/*.dump
+backups/*.sql
+*.dump
