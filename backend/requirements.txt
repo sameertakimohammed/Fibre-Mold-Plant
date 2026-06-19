@@ -9,10 +9,13 @@ passlib[bcrypt]==1.7.4
 python-multipart==0.0.20
 bcrypt==4.0.1
 openpyxl==3.1.5
+reportlab==4.2.5
+python-pptx==1.0.2
 ldap3==2.9.1
 alembic==1.14.0
 python-json-logger==3.1.0
 slowapi==0.1.9
 APScheduler==3.10.4
+anthropic==0.111.0
 pytest==8.3.4
 httpx==0.28.1

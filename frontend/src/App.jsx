@@ -7,6 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import SystemHealth from './components/SystemHealth'
 import NotificationsBell from './components/NotificationsBell'
 import SyncStatus from './components/SyncStatus'
+import ThemeToggle from './components/ThemeToggle'
 import Login from './pages/Login' // eager: entry point
 
 // Lazy-loaded so operators on slow tablets don't download every page +
@@ -17,6 +18,7 @@ const Fuel = lazy(() => import('./pages/Fuel'))
 const Downtime = lazy(() => import('./pages/Downtime'))
 const Deliveries = lazy(() => import('./pages/Deliveries'))
 const Materials = lazy(() => import('./pages/Materials'))
+const Reports = lazy(() => import('./pages/Reports'))
 const LogShift = lazy(() => import('./pages/LogShift'))
 const Account = lazy(() => import('./pages/Account'))
 const Users = lazy(() => import('./pages/Users'))
@@ -33,6 +35,9 @@ const NAV = [
     { to: '/deliveries', label: 'Deliveries', ic: '➜' },
     { to: '/materials', label: 'Stock & Bales', ic: '▦' },
     { to: '/log', label: 'Log Shift', ic: '＋' },
+  ] },
+  { sec: 'Reports', items: [
+    { to: '/reports', label: 'Reports', ic: '🖨' },
   ] },
 ]
 
@@ -101,6 +106,7 @@ function Protected({ children }) {
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
             <SyncStatus />
+            <ThemeToggle />
             <NotificationsBell />
           </div>
         </div>
@@ -134,6 +140,7 @@ export default function App() {
             <Route path="/downtime" element={<Protected><Downtime /></Protected>} />
             <Route path="/deliveries" element={<Protected><Deliveries /></Protected>} />
             <Route path="/materials" element={<Protected><Materials /></Protected>} />
+            <Route path="/reports" element={<Protected><Reports /></Protected>} />
             <Route path="/log" element={<Protected><LogShift /></Protected>} />
             <Route path="/account" element={<Protected><Account /></Protected>} />
             <Route path="/users" element={<Protected><AdminOnly><Users /></AdminOnly></Protected>} />

@@ -81,6 +81,11 @@ class Settings(BaseSettings):
     first_admin_username: str = "admin"
     first_admin_password: str = "admin123"  # forced change on first login is recommended
     first_admin_name: str = "Plant Administrator"
+    # On first boot, import the bundled historical dataset (data/history.json:
+    # Aug 2024 → May 2026 production, deliveries, fuel, bales, month-end stock).
+    # Idempotent. Set SEED_HISTORY=false to skip (e.g. the test suite seeds a
+    # minimal controlled dataset instead).
+    seed_history: bool = True
 
     # Active Directory (LDAP) — leave AD_ENABLED=false to use local passwords only
     ad_enabled: bool = False
@@ -148,6 +153,15 @@ class Settings(BaseSettings):
     report_email_to: str = ""   # who receives the scheduled .xlsx report
     # Per-dedup-key cooldown (minutes) so the same alert doesn't email twice.
     alert_email_cooldown_min: int = 720  # 12h
+
+    # ── AI assistant (Anthropic Claude) — DEFAULT OFF ─────────────────────
+    # Powers the AI report commentary and the "Ask the plant data" panel.
+    # Sends aggregated plant figures to Anthropic's API, so it stays OFF until
+    # an operator opts in AND supplies a key. ai_available() in services/ai.py
+    # gates every call on (ai_enabled AND anthropic_api_key present).
+    ai_enabled: bool = False
+    anthropic_api_key: str = ""
+    ai_model: str = "claude-opus-4-8"
 
     # ── Scheduled report email ─────────────────────────────────────────────
     # Cadence for the automatic report email. "monthly" (1st of month, prior

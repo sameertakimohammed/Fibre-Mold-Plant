@@ -46,6 +46,9 @@ os.environ["SCHEDULER_ENABLED"] = "false"
 os.environ["SECRET_KEY"] = "test-secret-key-fmp-0123456789abcdef-XYZ-32plus"
 os.environ["AD_ENABLED"] = "false"
 os.environ["SMTP_ENABLED"] = "false"
+# Skip the bundled Aug-2024..May-2026 history import; the suite seeds a minimal
+# controlled dataset and its fixtures pick dates assuming history is absent.
+os.environ["SEED_HISTORY"] = "false"
 # first_admin_username / first_admin_password map to these env vars.
 os.environ["FIRST_ADMIN_USERNAME"] = ADMIN_USERNAME
 os.environ["FIRST_ADMIN_PASSWORD"] = ADMIN_PASSWORD

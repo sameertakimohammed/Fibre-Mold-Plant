@@ -139,20 +139,34 @@ export const api = {
   },
   periods: () => request('/analytics/periods'),
 
-  // Download the monthly xlsx report (auth header + blob → browser save).
-  downloadReport: async (start, end) => {
+  // --- AI assistant (Claude). All no-op gracefully when AI is disabled. ---
+  aiStatus: () => request('/ai/status'),
+  aiAsk: (question) => request('/ai/ask', { method: 'POST', body: { question } }),
+  aiCommentary: (start, end) => {
     const q = new URLSearchParams()
     if (start) q.set('start', start)
     if (end) q.set('end', end)
+    return request(`/ai/commentary?${q}`)
+  },
+
+  // Download a report (auth header + blob → browser save). format is one of
+  // 'xlsx' | 'pdf' | 'pptx'; period is the cadence label used in the title and
+  // filename ('Daily' | 'Weekly' | 'Monthly'). Defaults keep the dashboard's
+  // existing api.downloadReport(start, end) call working unchanged.
+  downloadReport: async (start, end, { format = 'xlsx', period = 'Production' } = {}) => {
+    const q = new URLSearchParams()
+    if (start) q.set('start', start)
+    if (end) q.set('end', end)
+    if (period) q.set('period', period)
     const token = getToken()
-    const res = await fetch(`${API_BASE}/reports/monthly.xlsx?${q}`, {
+    const res = await fetch(`${API_BASE}/reports/report.${format}?${q}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
     if (!res.ok) throw new Error(`Report failed (${res.status})`)
     const blob = await res.blob()
     const cd = res.headers.get('Content-Disposition') || ''
     const m = cd.match(/filename="?([^"]+)"?/)
-    const name = m ? m[1] : `fmp-report-${start || 'all'}.xlsx`
+    const name = m ? m[1] : `FMP-${period}-${start || 'all'}.${format}`
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url; a.download = name

@@ -1,11 +1,13 @@
-"""Reusable monthly/period report builder.
+"""Excel (.xlsx) report builder.
 
-The openpyxl workbook construction used to live inline in routers/reports.py.
-It is refactored here so BOTH the /api/reports/monthly.xlsx route AND the
-scheduled report-email job build the identical workbook. The route streams the
-bytes; the scheduler attaches them to an email.
+The openpyxl workbook construction. Figures come from collect_report_data() in
+report_data.py, the single source shared with the PDF/PPTX builders and the
+scheduled report-email job — so every format and the emailed copy agree.
 
-build_report_xlsx(db, start, end) -> (xlsx_bytes, filename)
+build_report_xlsx(db, start, end[, period_label]) -> (xlsx_bytes, filename)
+
+The (db, start, end) call shape is preserved for the scheduler, which calls it
+positionally.
 """
 import io
 from datetime import date
@@ -15,8 +17,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-from ..models.production import ProductionShift
-from ..models.operations import Delivery
+from .report_data import collect_report_data, report_filename
 
 AMBER = "F5A623"
 INK = "1A1205"
@@ -46,56 +47,40 @@ def build_report_xlsx(
     db: Session,
     start: date | None = None,
     end: date | None = None,
+    period_label: str = "Production",
 ) -> tuple[bytes, str]:
     """Build the production report workbook for the given date range.
 
     Returns (xlsx_bytes, filename). Soft-deleted rows are excluded so the report
     matches the dashboard KPIs.
     """
-    q = db.query(ProductionShift).filter(ProductionShift.deleted_at.is_(None))
-    if start:
-        q = q.filter(ProductionShift.work_date >= start)
-    if end:
-        q = q.filter(ProductionShift.work_date <= end)
-    shifts = q.order_by(ProductionShift.work_date, ProductionShift.shift).all()
-
-    dq = db.query(Delivery).filter(Delivery.deleted_at.is_(None))
-    if start:
-        dq = dq.filter(Delivery.work_date >= start)
-    if end:
-        dq = dq.filter(Delivery.work_date <= end)
-    deliveries = dq.order_by(Delivery.work_date).all()
-
-    tot_qty = sum(s.qty for s in shifts)
-    tot_fuel = sum(s.fuel_use for s in shifts)
-    tot_down = sum(s.downtime_min for s in shifts)
-    tot_sched = sum(s.sched_hours for s in shifts) or 0
-    tot_repulp = sum(s.repulped for s in shifts)
-    active = len({s.work_date for s in shifts if s.qty > 0})
-    span = f"{start} to {end}" if start and end else "All time"
+    data = collect_report_data(db, start, end, period_label)
+    m = data.metrics
+    shifts, deliveries = data.shifts, data.deliveries
 
     wb = Workbook()
 
     # ---- Summary sheet ----
     ws = wb.active
     ws.title = "Summary"
-    ws["A1"] = "Fibre Mold Plant — Production Report"
+    ws["A1"] = f"Fibre Mold Plant — {data.period_label} Report"
     ws["A1"].font = TITLE_FONT
-    ws["A2"] = f"Golden Manufacturers · Period: {span}"
+    ws["A2"] = f"Golden Manufacturers · Period: {data.span}"
     ws["A2"].font = Font(italic=True, color="667085", name="Arial", size=10)
 
     rows = [
-        ("Total trays produced", round(tot_qty), "#,##0"),
-        ("Active production days", active, "0"),
-        ("Average trays / day", round(tot_qty / active) if active else 0, "#,##0"),
-        ("Total diesel burned (L)", round(tot_fuel), "#,##0"),
-        ("Fuel efficiency (L / 1k trays)", round(tot_fuel / tot_qty * 1000, 1) if tot_qty else 0, "#,##0.0"),
-        ("Total downtime (hrs)", round(tot_down / 60, 1), "#,##0.0"),
-        ("Downtime rate (% of scheduled)", round(tot_down / 60 / tot_sched * 100, 1) if tot_sched else 0, "#,##0.0"),
-        ("Trays re-pulped", round(tot_repulp), "#,##0"),
-        ("30's delivered", round(sum(d.tray30 for d in deliveries)), "#,##0"),
-        ("12's delivered", round(sum(d.tray12n + d.tray12ff for d in deliveries)), "#,##0"),
-        ("Pallets shipped", round(sum(d.pallets for d in deliveries)), "#,##0"),
+        ("Total trays produced", m["total_qty"], "#,##0"),
+        ("Active production days", m["active_days"], "0"),
+        ("Average trays / day", m["avg_per_day"], "#,##0"),
+        ("Total diesel burned (L)", m["total_fuel"], "#,##0"),
+        ("Fuel efficiency (L / 1k trays)", m["fuel_eff"], "#,##0.0"),
+        ("Total downtime (hrs)", m["total_downtime_hrs"], "#,##0.0"),
+        ("Downtime rate (% of scheduled)", m["downtime_pct"], "#,##0.0"),
+        ("Trays re-pulped", m["total_repulped"], "#,##0"),
+        ("Re-pulp rate (%)", m["repulp_rate"], "#,##0.0"),
+        ("30's delivered", m["tray30"], "#,##0"),
+        ("12's delivered", m["tray12"], "#,##0"),
+        ("Pallets shipped", m["pallets"], "#,##0"),
     ]
     r = 4
     for label, val, nfmt in rows:
@@ -140,5 +125,4 @@ def build_report_xlsx(
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
-    fname = f"fmp-report-{start or 'all'}-{end or ''}.xlsx".replace(" ", "")
-    return buf.getvalue(), fname
+    return buf.getvalue(), report_filename("xlsx", start, end, period_label)

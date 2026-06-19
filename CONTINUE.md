@@ -68,7 +68,9 @@ frontend (React/Vite)  ──/api──>  backend (FastAPI)  ──SQL──>  P
 | Add an API call from the UI | `frontend/src/api/client.js` |
 | Change colors/spacing | `frontend/src/index.css` (CSS vars at top) |
 | Add a nav item | `frontend/src/App.jsx` (the `nav` array in `Sidebar`) |
-| Change seed/import behavior | `backend/app/services/seed.py`, `import_excel.py` |
+| Change seed/import behavior | `backend/app/services/seed.py`, `import_excel.py`, `import_history.py` |
+| Change the Month End Report layout | `backend/app/services/report_monthend.py` |
+| Change AI commentary / Q&A behavior | `backend/app/services/ai.py` (prompts, context, model) |
 
 ---
 
@@ -136,6 +138,41 @@ production data you care about, you can keep using `create_all` and just delete
   - *Shift log edit/delete/search* — `pages/Production.jsx` has a search box + a role-
     gated edit modal (supervisor+) and delete (manager+). Shift field layout shared via
     `components/shiftFields.js` (used by LogShift + the modal).
+
+### Historical data + Month End Report (added)
+- **Full history import.** `services/import_history.py` parses the plant's
+  emailed monthly bundle — daily tracker, deliveries, fuel-dip, bale and the
+  "End of Month Report" stock file — into one de-duplicated `data/history.json`
+  (Aug 2024 → May 2026: ~985 shifts, 194 deliveries, 356 fuel dips, 595 bale
+  receipts, 14 month-end records). `run_seed()` replays it on first boot,
+  idempotently (gated by `SEED_HISTORY`, default on; the test suite sets it off).
+  To regenerate the JSON from raw files:
+  `python -m app.services.import_history build <src_dir> data/history.json`
+  (point `<src_dir>` at a folder of the monthly .xlsx files; parsers find the
+  header rows / sections by content, so the 2024 and 2026 layout drift is handled).
+- **Month End Report.** `services/report_monthend.py` rebuilds the plant's
+  emailed 10-section management template (diesel, goods produced, balance stock
+  by colour, toner, label brands, pallets local/export, bales) as xlsx + pdf,
+  rendered from `MonthlyStock.detail` (the full parsed payload — new JSON column,
+  see migration `e5f6a7b8c9d0`) with computed fallbacks from production. Reached
+  via `GET /api/v1/reports/report.{xlsx,pdf}?period=MonthEnd` and the two
+  "Month End" buttons on the Reports page (monthly cadence).
+
+### AI assistant (Claude) — added, default off
+- **`services/ai.py`** — Anthropic SDK (`claude-opus-4-8`, adaptive thinking).
+  `ai_available()` gates everything on `AI_ENABLED` + `ANTHROPIC_API_KEY`.
+  `generate_commentary(data)` writes the "Plant Manager's Commentary" embedded in
+  the Month End Report (xlsx + pdf); `answer_question(q, db)` powers Q&A, grounded
+  in `collect_context(db)` — a bounded ~18-month digest of the plant's own
+  production/deliveries/stock (aggregated in Python, never raw rows).
+- **`routers/ai.py`** — `GET /api/v1/ai/status`, `POST /api/v1/ai/ask`
+  (rate-limited 20/min), `GET /api/v1/ai/commentary`. All 503 when AI is off.
+- **Frontend** — `components/AskAI.jsx` ("Ask the plant data") + a commentary card
+  on the Reports page, both shown only when `/ai/status` reports enabled.
+- Sends aggregated figures to Anthropic, so it's OFF by default. Turn on with
+  `AI_ENABLED=true` + `ANTHROPIC_API_KEY` (see `.env.example`). Degrades
+  gracefully — a failed/slow AI call just omits the commentary; the report still
+  builds.
 
 ### Next up (suggested order)
 1. **Alembic migrations** (see above) before the first real schema change.

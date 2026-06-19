@@ -10,6 +10,26 @@
   --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   --sh:0 8px 28px -12px rgba(0,0,0,.55);
   --sh-lg:0 24px 60px -16px rgba(0,0,0,.7);
+  --topbar-bg:rgba(13,16,20,.92);
+  --on-amber:#1a1205;          /* readable text on the amber accent (both themes) */
+}
+
+/* Light theme — overrides the dark defaults above when <html data-theme="light">.
+   Every surface/text colour the UI uses is a CSS var, so flipping these is enough;
+   the amber/green/red accents stay the brand colours in both modes. */
+html[data-theme="light"]{
+  --bg:#eef1f5; --bg2:#e3e8ee; --panel:#ffffff; --panel2:#f1f4f8; --panel3:#e6ebf1;
+  --line:#d7dde5; --line2:#c2cbd6;
+  --ink:#172230; --mut:#566372; --dim:#8a95a3;
+  --amber-soft:rgba(245,166,35,.16);
+  --sh:0 8px 24px -14px rgba(23,34,48,.18);
+  --sh-lg:0 24px 60px -18px rgba(23,34,48,.22);
+  --topbar-bg:rgba(255,255,255,.9);
+}
+/* Soften the accent glow on light (the dark radials read as smudges otherwise). */
+html[data-theme="light"] body{
+  background-image:radial-gradient(circle at 12% -8%,rgba(245,166,35,.10),transparent 40%),
+                   radial-gradient(circle at 92% 2%,rgba(88,166,255,.08),transparent 44%);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
@@ -63,7 +83,7 @@ a{color:var(--blue);text-decoration:none}
 /* topbar + drawer — always shown (holds the notifications bell); on desktop
    the hamburger + plant title are hidden and only the bell remains, right-aligned */
 .topbar{display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:45;
-  background:rgba(13,16,20,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:11px 16px}
+  background:var(--topbar-bg);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:11px 16px}
 .topbar .hamburger,.topbar .tb-title,.topbar .tb-sub{display:none}
 .hamburger{background:var(--panel2);border:1px solid var(--line);border-radius:9px;width:40px;height:40px;
   align-items:center;justify-content:center;color:var(--ink);font-size:18px}
@@ -72,7 +92,16 @@ a{color:var(--blue);text-decoration:none}
 .bell-btn{background:var(--panel2);border:1px solid var(--line);border-radius:9px;width:40px;height:40px;
   display:flex;align-items:center;justify-content:center;color:var(--ink);font-size:17px;transition:.15s}
 .bell-btn:hover{border-color:var(--line2);background:var(--panel3)}
+.theme-toggle{background:var(--panel2);border:1px solid var(--line);border-radius:9px;width:40px;height:40px;
+  display:flex;align-items:center;justify-content:center;color:var(--ink);font-size:17px;transition:.15s}
+.theme-toggle:hover{border-color:var(--amber);color:var(--amber);background:var(--amber-soft)}
 .scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:39;backdrop-filter:blur(2px)}
+
+/* AI output — themed readable block for commentary / answers (replaces the
+   broken inline light box that was unreadable in dark mode). */
+.ai-output{margin-top:14px;padding:16px 18px;background:var(--panel2);color:var(--ink);
+  border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:var(--r-sm);
+  white-space:pre-wrap;line-height:1.6;font-size:13.5px}
 
 /* period selector + segmented */
 .period-pick{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -86,6 +115,12 @@ a{color:var(--blue);text-decoration:none}
 .seg button.on{background:var(--amber);color:#1a1205}
 .seg button:not(.on):hover{color:var(--ink)}
 .range-grp{display:flex;align-items:center;gap:6px}
+.rep-controls{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.rep-hint{color:var(--mut);font-size:12px}
+.rep-span{margin-top:14px;color:var(--mut);font-size:13px}
+.rep-span strong{color:var(--ink);font-family:var(--mono);letter-spacing:.3px}
+.rep-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.rep-preview-h{margin:22px 0 10px;color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.6px;font-weight:700}
 .range-grp .dash{color:var(--dim)}
 
 /* kpis */

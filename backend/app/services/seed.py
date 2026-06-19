@@ -144,4 +144,14 @@ def import_may_data(db: Session):
 
 def run_seed(db: Session):
     ensure_admin(db)
+    # Full historical bundle (Aug 2024 → May 2026) parsed from the plant's
+    # monthly emails into data/history.json. Idempotent — safe on every boot.
+    # Disabled in the test suite (SEED_HISTORY=false) which seeds its own data.
+    if settings.seed_history:
+        try:
+            from .import_history import import_history
+            import_history(db)
+        except Exception:
+            logger.exception("[seed] history import failed; falling back to May seed")
+    # Fallback for installs without history.json: the original curated May data.
     import_may_data(db)

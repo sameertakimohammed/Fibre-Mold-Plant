@@ -1,5 +1,5 @@
 from datetime import datetime, timezone, date
-from sqlalchemy import String, Integer, Float, Date, DateTime, ForeignKey, Text
+from sqlalchemy import String, Integer, Float, Date, DateTime, ForeignKey, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from ..core.database import Base
 
@@ -77,6 +77,11 @@ class MonthlyStock(Base):
     bales_used: Mapped[float] = mapped_column(Float, default=0)
     bales_purchased: Mapped[float] = mapped_column(Float, default=0)
     labels_used: Mapped[float] = mapped_column(Float, default=0)
+    # Full parsed "End of Month Report" (10 sections: goods produced, balance
+    # stock by colour, toner, label brands, pallets local/export, etc.). The flat
+    # columns above are the digest; this JSON preserves everything the printed
+    # month-end report needs and is rendered faithfully by the Month End Report.
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     deleted_at: Mapped[datetime | None] = mapped_column(

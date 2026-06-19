@@ -7,10 +7,12 @@ Chart.register(
   CategoryScale, LinearScale, BarElement, LineElement, PointElement,
   ArcElement, Tooltip, Legend, Filler
 )
+// Neutral grey tick/grid colours so charts read on both the dark and light
+// themes (Chart.js reads these once at import; a mid-grey works on either bg).
 Chart.defaults.color = '#8b97a5'
 Chart.defaults.font.family = "'JetBrains Mono',monospace"
 Chart.defaults.font.size = 11
-Chart.defaults.borderColor = '#2a323d'
+Chart.defaults.borderColor = 'rgba(128,140,155,.28)'
 
 export const C = {
   amber: '#f5a623', green: '#3fb950', red: '#f0556d', blue: '#58a6ff',
@@ -25,7 +27,7 @@ export const PROD_COLORS = {
 
 export const gridX = { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 16 } }
 export const gridY = {
-  grid: { color: 'rgba(42,50,61,.5)' },
+  grid: { color: 'rgba(128,140,155,.22)' },
   ticks: { callback: v => (v >= 1000 ? v / 1000 + 'k' : v) },
 }
 export const fmt = n => Math.round(n || 0).toLocaleString()
