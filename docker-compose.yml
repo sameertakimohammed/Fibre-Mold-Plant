@@ -36,8 +36,15 @@ services:
       FIRST_ADMIN_USERNAME: "${ADMIN_USERNAME:?ADMIN_USERNAME must be set in .env}"
       FIRST_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set in .env}"
       FIRST_ADMIN_NAME: "Plant Administrator"
+      # So the admin "Backups" panel can report the latest dump's age/size. Path
+      # matches the read-only bind mount below (same ./backups the sidecar fills).
+      BACKUP_DIR: /app/backups
     ports:
       - "${APP_PORT:-8000}:8000"
+    volumes:
+      # Read-only view of the nightly dumps so the app can REPORT on them (it
+      # never writes here — the db-backup sidecar owns this directory).
+      - ./backups:/app/backups:ro
     mem_limit: 1g
     cpus: "1.5"
     logging:

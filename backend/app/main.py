@@ -22,7 +22,10 @@ from .core.config import settings
 from .core.context import set_request_id, get_request_id
 from .core.database import Base, engine, SessionLocal
 from .core.ratelimit import limiter
-from .routers import auth, users, shifts, operations, analytics, reports, audit, notifications, bi, ai
+from .routers import (
+    auth, users, shifts, operations, analytics, reports, audit,
+    notifications, bi, ai, targets, admin,
+)
 from .services.seed import run_seed
 from .services.audit import register_audit_listeners
 from .services.scheduler import start_scheduler, shutdown_scheduler
@@ -224,6 +227,8 @@ app.include_router(audit.router)
 app.include_router(notifications.router)
 app.include_router(bi.router)
 app.include_router(ai.router)
+app.include_router(targets.router)
+app.include_router(admin.router)
 
 
 @app.get("/api/health")

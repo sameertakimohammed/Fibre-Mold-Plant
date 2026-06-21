@@ -141,3 +141,15 @@ class MonthlyStockBase(BaseModel):
 class MonthlyStockOut(MonthlyStockBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
+
+
+class TargetIn(BaseModel):
+    value: NonNegFloat = 0
+
+
+class TargetOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    metric: str
+    value: float
+    updated_at: datetime | None = None
+    updated_by: int | None = None

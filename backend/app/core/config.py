@@ -76,6 +76,16 @@ class Settings(BaseSettings):
     # How long (minutes) the account stays locked; auto-unlocks after this.
     lockout_minutes: int = 15
 
+    # ── Backups ─────────────────────────────────────────────────────────────
+    # Directory the nightly pg_dump sidecar writes to (see docker-compose.yml).
+    # Mounted read-only into the app container so the admin "Backups" panel can
+    # report the latest dump's age/size. Empty or missing -> panel reports
+    # "not configured" (e.g. local SQLite dev, where there is no sidecar).
+    backup_dir: str = "backups"
+    # A backup older than this many hours is flagged stale (the sidecar runs
+    # @daily, so >36h means at least one nightly dump was missed).
+    backup_stale_hours: int = 36
+
     # ── CORS ────────────────────────────────────────────────────────────────
     # Comma-separated list of browser origins allowed to call the API. The
     # default "*" preserves the open-on-the-LAN behaviour this plant relies on.
