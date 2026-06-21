@@ -174,12 +174,43 @@ production data you care about, you can keep using `create_all` and just delete
   gracefully — a failed/slow AI call just omits the commentary; the report still
   builds.
 
+### Done since (current branch)
+- **Inline edit/delete everywhere.** PUT endpoints for deliveries, bales and
+  fuel dips (supervisor+); month-end stock soft-delete (manager+, revives on
+  re-upsert so the unique-period slot can't collide). UI: reusable
+  `components/RowEditModal.jsx` (field-spec driven) wired into Deliveries, Fuel
+  and Materials.
+- **Data-entry validation.** `frontend/src/lib/validate.js` — advisory,
+  non-blocking checks (product types vs total trays; fuel used vs open−close;
+  dip usage vs open−close+received) shown live in Log Shift, the shift edit
+  modal and the fuel-dip form. (Server keeps the hard guards.)
+- **KPI targets + forecast.** `kpi_targets` table (+ migration `f6a7b8c9d0e1`),
+  `/api/v1/targets` CRUD (GET any user, PUT/DELETE manager+). The analytics
+  summary returns `targets` (drives the "vs target" bars on the Dashboard KPI
+  cards) and `forecast` (run-rate projection for an in-progress period).
+  Manager+ targets editor on the Dashboard.
+- **CSV export.** `GET /api/v1/reports/report.csv` (raw shift detail, Excel
+  BOM); ⤓ CSV button on the Reports page.
+- **Backup visibility.** `services/backups.py` + `GET /api/v1/admin/backups`
+  (admin) report the latest nightly dump's age/size/staleness; "Database
+  Backups" card on the Account page. Compose mounts `./backups` read-only.
+- **Sliding session.** `POST /api/v1/auth/refresh` renews a still-valid token;
+  the frontend auto-refreshes every 6h so a 12h shift isn't logged out
+  mid-entry. (httpOnly refresh cookies still deferred until TLS exists.)
+- **CORS** is now configurable via `CORS_ORIGINS` (default `*`), and credentialed
+  CORS is only enabled with an explicit allow-list.
+- **Frontend tests + CI.** Vitest + React Testing Library (`npm test`); CI
+  (`.github/workflows/python-package.yml`) runs backend (pytest + flake8) and
+  frontend (build + vitest) jobs.
+
 ### Next up (suggested order)
-1. **Alembic migrations** (see above) before the first real schema change.
-2. **Validation polish.** e.g. fuel_use should reconcile with open−close; warn if
-   product-type sum ≠ total qty.
-3. **PDF report** option alongside the xlsx export.
-4. **Inline edit for deliveries/bales/fuel/stock** rows (only shift log has edit so far).
+1. **httpOnly refresh-cookie split** once TLS is in front of the app (the
+   `/auth/refresh` endpoint and sliding session are already in place).
+2. **PDF/PPTX is already shipped** — consider scheduled email of the CSV too.
+3. **Per-customer drill-down page** (the Deliveries page already breaks out
+   top customers + share %; a dedicated page could add per-customer trends).
+4. **Frontend page-level tests** (the harness is in place; current tests cover
+   validate.js, the Kpi target bar and RowEditModal).
 
 ---
 

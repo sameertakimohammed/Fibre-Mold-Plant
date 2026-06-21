@@ -58,7 +58,10 @@ export default function Deliveries() {
   const days = data.by_day
   const dbd = data.deliveries_by_day
   const allDates = [...new Set([...days.map(d => d.date), ...Object.keys(dbd)])].sort()
-  const cust = Object.entries(data.deliveries_by_customer).slice(0, 8)
+  const custAll = Object.entries(data.deliveries_by_customer)
+  const cust = custAll.slice(0, 8)
+  const custTotal = custAll.reduce((s, [, v]) => s + v, 0)
+  const topCust = custAll[0]
   const canWrite = can('supervisor')
   const canDelete = can('supervisor')
 
@@ -118,10 +121,11 @@ export default function Deliveries() {
           </div>
         </Card>
 
-        <Card title="Deliveries by Customer" sub="Total trays dispatched (all types)">
+        <Card title="Deliveries by Customer"
+          sub={topCust ? `Top: ${topCust[0]} · ${Math.round(topCust[1] / (custTotal || 1) * 100)}% of ${fmt(custTotal)} trays` : 'Total trays dispatched (all types)'}>
           <div className="chart-box">
             <Bar data={{ labels: cust.map(c => c[0]), datasets: [{ data: cust.map(c => c[1]), backgroundColor: C.green, borderRadius: 4 }] }}
-              options={{ ...baseOpts, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: gridY, y: { grid: { display: false } } } }} />
+              options={{ ...baseOpts, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${fmt(ctx.parsed.x)} trays · ${Math.round(ctx.parsed.x / (custTotal || 1) * 100)}%` } } }, scales: { x: gridY, y: { grid: { display: false } } } }} />
           </div>
         </Card>
 
