@@ -142,6 +142,15 @@ a{color:var(--blue);text-decoration:none}
 .kpi .k-delta.down{background:rgba(240,85,109,.14);color:var(--red)}
 .kpi .k-delta.flat{background:var(--panel3);color:var(--mut)}
 .kpi .k-spark{margin-top:10px;height:30px}
+/* KPI target attainment (vs management goal) */
+.kpi .k-target{margin-top:10px}
+.kpi .kt-track{height:4px;border-radius:3px;background:var(--panel3);overflow:hidden}
+.kpi .kt-track span{display:block;height:100%;border-radius:3px;background:var(--mut)}
+.kpi .k-target.met .kt-track span{background:var(--green)}
+.kpi .k-target.miss .kt-track span{background:var(--amber)}
+.kpi .kt-lbl{font-family:var(--mono);font-size:10px;margin-top:4px;color:var(--dim)}
+.kpi .k-target.met .kt-lbl{color:var(--green)}
+.kpi .k-target.miss .kt-lbl{color:var(--amber)}
 
 /* cards */
 .grid{display:grid;gap:16px}
@@ -294,6 +303,10 @@ tr:hover td{background:var(--panel2)}
 .mini .m-val{font-size:20px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
 .banner{background:var(--amber-soft);border:1px solid rgba(245,166,35,.3);color:var(--amber);
   padding:12px 16px;border-radius:var(--r-sm);font-size:13px;margin-bottom:18px;font-family:var(--mono)}
+/* Advisory, non-blocking data-entry warnings (likely-typo nudges). */
+.entry-warn{background:var(--amber-soft);border:1px solid rgba(245,166,35,.3);color:var(--amber);
+  padding:10px 14px;border-radius:var(--r-sm);font-size:12.5px;margin:12px 0 4px;
+  display:flex;flex-direction:column;gap:4px}
 .entry-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .entry-head h3{font-size:13px;font-weight:700;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
 .entry-head h3 .dot{width:7px;height:7px;border-radius:2px;background:var(--amber);box-shadow:0 0 8px rgba(245,166,35,.6)}

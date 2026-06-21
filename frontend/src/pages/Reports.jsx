@@ -146,6 +146,9 @@ export default function Reports() {
           <button className="btn btn-ghost btn-sm" disabled={!range || busy} onClick={() => download('pdf')}>
             {busy === 'pdf' ? 'Preparing…' : '⤓ PDF'}
           </button>
+          <button className="btn btn-ghost btn-sm" disabled={!range || busy} onClick={() => download('csv')}>
+            {busy === 'csv' ? 'Preparing…' : '⤓ CSV'}
+          </button>
           {cadence === 'monthly' && (
             <button className="btn btn-ghost btn-sm" disabled={!range || busy} onClick={() => download('pptx')}>
               {busy === 'pptx' ? 'Preparing…' : '⤓ PowerPoint'}

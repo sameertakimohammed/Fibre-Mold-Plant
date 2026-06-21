@@ -3,7 +3,7 @@ import { useState } from 'react'
 // Generic inline entry form driven by a field spec.
 // field: { key, label, type:'number'|'text'|'date'|'select'|'textarea',
 //          options?, required?, full?, default?, step?, placeholder? }
-export function EntryForm({ fields, onSubmit, submitLabel = 'Save', hint, resetAfter = true }) {
+export function EntryForm({ fields, onSubmit, submitLabel = 'Save', hint, resetAfter = true, warn }) {
   const init = () => {
     const o = {}
     fields.forEach(f => {
@@ -15,6 +15,9 @@ export function EntryForm({ fields, onSubmit, submitLabel = 'Save', hint, resetA
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  // Advisory, non-blocking warnings recomputed live from the current values.
+  const warnings = warn ? warn(form) : []
 
   const submit = async () => {
     for (const f of fields) {
@@ -63,6 +66,11 @@ export function EntryForm({ fields, onSubmit, submitLabel = 'Save', hint, resetA
           </div>
         ))}
       </div>
+      {warnings.length > 0 && (
+        <div className="entry-warn">
+          {warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+        </div>
+      )}
       <div className="form-actions">
         <button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? 'Saving…' : submitLabel}</button>
         <button className="btn btn-ghost" onClick={() => { setForm(init()); setMsg(null) }}>Clear</button>

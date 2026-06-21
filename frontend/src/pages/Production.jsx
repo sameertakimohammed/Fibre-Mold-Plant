@@ -7,6 +7,7 @@ import { usePeriod } from '../components/Period'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { SHIFT_GROUPS, SHIFT_NUM_KEYS } from '../components/shiftFields'
+import { shiftWarnings } from '../lib/validate'
 
 const baseOpts = { responsive: true, maintainAspectRatio: false }
 
@@ -19,6 +20,7 @@ function ShiftEditModal({ shift, onClose, onSaved }) {
   })
   const [busy, setBusy] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const warnings = shiftWarnings(form)
 
   const save = async () => {
     setBusy(true)
@@ -61,6 +63,9 @@ function ShiftEditModal({ shift, onClose, onSaved }) {
       <div className="fld full"><label>Comments</label>
         <textarea value={form.comment} onChange={e => set('comment', e.target.value)} />
       </div>
+      {warnings.length > 0 && (
+        <div className="entry-warn">{warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}</div>
+      )}
     </Modal>
   )
 }

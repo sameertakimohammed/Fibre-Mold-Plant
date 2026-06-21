@@ -4,6 +4,7 @@ import { api, OFFLINE_QUEUED } from '../api/client'
 import { C, gridX, gridY, fmt, dlabel } from '../api/charts'
 import { Kpi, Card, PageHead, PageSkeleton } from '../components/ui'
 import { EntryForm } from '../components/EntryForm'
+import { RowEditModal } from '../components/RowEditModal'
 import { usePeriod } from '../components/Period'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -27,6 +28,7 @@ export default function Deliveries() {
   const [data, setData] = useState(null)
   const [list, setList] = useState([])
   const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing] = useState(null)
   const [err, setErr] = useState('')
 
   const load = useCallback(() => {
@@ -126,7 +128,7 @@ export default function Deliveries() {
         <Card title="Delivery Log" sub="All dispatches recorded">
           <div className="tbl-scroll" style={{ maxHeight: 280 }}>
             <table>
-              <thead><tr><th>Date</th><th>Customer</th><th>30's</th><th>12's</th><th>Pallets</th>{canDelete && <th></th>}</tr></thead>
+              <thead><tr><th>Date</th><th>Customer</th><th>30's</th><th>12's</th><th>Pallets</th>{(canWrite || canDelete) && <th></th>}</tr></thead>
               <tbody>
                 {list.map(d => (
                   <tr key={d.id}>
@@ -134,15 +136,35 @@ export default function Deliveries() {
                     <td>{d.tray30 ? fmt(d.tray30) : '—'}</td>
                     <td>{(d.tray12n + d.tray12ff) ? fmt(d.tray12n + d.tray12ff) : '—'}</td>
                     <td>{d.pallets || '—'}</td>
-                    {canDelete && <td><button className="btn btn-danger btn-sm" onClick={() => remove(d.id)}>Delete</button></td>}
+                    {(canWrite || canDelete) && (
+                      <td><div className="row-actions">
+                        {canWrite && <button className="btn btn-ghost btn-sm" onClick={() => setEditing(d)}>Edit</button>}
+                        {canDelete && <button className="btn btn-danger btn-sm" onClick={() => remove(d.id)}>Delete</button>}
+                      </div></td>
+                    )}
                   </tr>
                 ))}
-                {list.length === 0 && <tr><td colSpan={canDelete ? 6 : 5} style={{ color: 'var(--dim)' }}>No deliveries recorded this period.</td></tr>}
+                {list.length === 0 && <tr><td colSpan={(canWrite || canDelete) ? 6 : 5} style={{ color: 'var(--dim)' }}>No deliveries recorded this period.</td></tr>}
               </tbody>
             </table>
           </div>
         </Card>
       </div>
+
+      {editing && (
+        <RowEditModal
+          title="Edit Delivery"
+          sub={`${editing.work_date} · ${editing.company}`}
+          fields={DELIVERY_FIELDS}
+          initial={editing}
+          onClose={() => setEditing(null)}
+          onSave={async (payload) => {
+            await api.updateDelivery(editing.id, payload)
+            toast.ok(`Updated delivery for ${payload.company}.`)
+            load()
+          }}
+        />
+      )}
     </div>
   )
 }
