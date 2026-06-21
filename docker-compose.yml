@@ -100,5 +100,46 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # ── HTTPS reverse proxy (Caddy) — OPT-IN via the "tls" profile ─────────────
+  # Default `docker compose up -d` does NOT start this (HTTP on APP_PORT only).
+  # Start it with:  docker compose --profile tls up -d --build
+  #
+  # LAN / IP deployment: there is no public DNS name, so Caddy issues a cert
+  # from its own built-in CA (see Caddyfile -> `tls internal`). Traffic is
+  # encrypted; browsers warn until you install Caddy's root CA on client PCs:
+  #   docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt .
+  # then import root.crt into "Trusted Root Certification Authorities" on each PC
+  # (or via Group Policy). The caddy_data volume persists that CA across restarts
+  # so you only install it once.
+  #
+  # Set SITE_ADDRESS in .env to your server, e.g.  SITE_ADDRESS=https://192.168.1.50
+  # When using TLS, you can stop publishing the app's plain-HTTP port: comment out
+  # the app service's `ports:` block above and open only 443 on the firewall.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    profiles: ["tls"]
+    depends_on:
+      - app
+    environment:
+      SITE_ADDRESS: "${SITE_ADDRESS:?SITE_ADDRESS must be set in .env for the tls profile, e.g. https://192.168.1.50}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data        # persists the internal CA + issued certs
+      - caddy_config:/config
+    mem_limit: 256m
+    cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   fmp_pgdata:
+  caddy_data:
+  caddy_config:
+
