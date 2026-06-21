@@ -26,15 +26,23 @@ export default function Fuel() {
   const [dips, setDips] = useState([])
   const [price, setPrice] = useState(2.4)
   const [showForm, setShowForm] = useState(false)
+  const [err, setErr] = useState('')
 
   const load = useCallback(() => {
     if (!rangeKey || (!start && !end)) return
-    api.summary(start, end).then(setData)
-    api.listFuelDips(start, end).then(setDips)
+    setErr('')
+    api.summary(start, end).then(setData).catch(e => setErr(e.message))
+    api.listFuelDips(start, end).then(setDips).catch(e => setErr(e.message))
   }, [rangeKey])
 
   useEffect(() => { setData(null); load() }, [load])
 
+  if (err) return (
+    <div className="main">
+      <PageHead title="Fuel & Energy" sub="Diesel consumption, efficiency & cost" right={control} />
+      <div className="err">{err}</div>
+    </div>
+  )
   if (!data) return <PageSkeleton kpis={4} cards={3} />
 
   const k = data.kpis

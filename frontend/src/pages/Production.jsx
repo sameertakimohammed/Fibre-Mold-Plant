@@ -73,11 +73,13 @@ export default function Production() {
   const [shifts, setShifts] = useState([])
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState(null)
+  const [err, setErr] = useState('')
 
   const load = useCallback(() => {
     if (!rangeKey || (!start && !end)) return
-    api.summary(start, end).then(setData)
-    api.listShifts(start, end).then(setShifts)
+    setErr('')
+    api.summary(start, end).then(setData).catch(e => setErr(e.message))
+    api.listShifts(start, end).then(setShifts).catch(e => setErr(e.message))
   }, [rangeKey])
 
   useEffect(() => { setData(null); load() }, [load])
@@ -91,6 +93,12 @@ export default function Production() {
     catch (e) { toast.err(e.message) }
   }
 
+  if (err) return (
+    <div className="main">
+      <PageHead title="Production" sub="Output, mix, machine & speed" right={control} />
+      <div className="err">{err}</div>
+    </div>
+  )
   if (!data) return <PageSkeleton kpis={5} cards={4} />
 
   const days = data.by_day

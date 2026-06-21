@@ -27,11 +27,13 @@ export default function Deliveries() {
   const [data, setData] = useState(null)
   const [list, setList] = useState([])
   const [showForm, setShowForm] = useState(false)
+  const [err, setErr] = useState('')
 
   const load = useCallback(() => {
     if (!rangeKey || (!start && !end)) return
-    api.summary(start, end).then(setData)
-    api.listDeliveries(start, end).then(setList)
+    setErr('')
+    api.summary(start, end).then(setData).catch(e => setErr(e.message))
+    api.listDeliveries(start, end).then(setList).catch(e => setErr(e.message))
   }, [rangeKey])
 
   useEffect(() => { setData(null); load() }, [load])
@@ -42,6 +44,12 @@ export default function Deliveries() {
     catch (e) { toast.err(e.message) }
   }
 
+  if (err) return (
+    <div className="main">
+      <PageHead title="Deliveries & Stock" sub="Dispatch flow vs production" right={control} />
+      <div className="err">{err}</div>
+    </div>
+  )
   if (!data) return <PageSkeleton kpis={4} cards={3} />
 
   const k = data.kpis

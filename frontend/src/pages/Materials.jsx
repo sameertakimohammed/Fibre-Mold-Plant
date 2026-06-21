@@ -33,15 +33,24 @@ export default function Materials() {
   const [bales, setBales] = useState([])
   const [stock, setStock] = useState(null)
   const [showBale, setShowBale] = useState(false)
+  const [err, setErr] = useState('')
 
   const load = useCallback(() => {
     if (!period) return
-    api.listBales(start, end).then(setBales)
-    api.listStock().then(setStock)
+    setErr('')
+    api.listBales(start, end).then(setBales).catch(e => setErr(e.message))
+    api.listStock().then(setStock).catch(e => setErr(e.message))
   }, [rangeKey])
 
   useEffect(() => { load() }, [load])
 
+  if (err) return (
+    <div className="main">
+      <PageHead title="Stock & Bales" sub="Raw material receipts & month-end balances"
+        right={<PeriodPicker periods={periods} period={period} setPeriod={setPeriod} />} />
+      <div className="err">{err}</div>
+    </div>
+  )
   if (stock === null) return <PageSkeleton kpis={4} cards={2} />
 
   const canEditStock = can('supervisor')

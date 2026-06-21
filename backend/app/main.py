@@ -73,10 +73,16 @@ app = FastAPI(title=settings.project_name, lifespan=lifespan)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 
+# Origins come from settings (CORS_ORIGINS); default "*" keeps the LAN-open
+# behaviour. The CORS spec forbids combining a "*" origin with credentialed
+# requests (browsers reject it), so we only enable credentials when an explicit
+# allow-list is configured. Auth here uses Authorization: Bearer headers, not
+# cookies, so the wildcard path does not need credentials anyway.
+_cors_origins = settings.cors_origin_list
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # local network; tighten if exposed
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
