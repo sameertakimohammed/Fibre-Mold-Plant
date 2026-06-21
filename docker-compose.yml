@@ -39,8 +39,15 @@ services:
       # So the admin "Backups" panel can report the latest dump's age/size. Path
       # matches the read-only bind mount below (same ./backups the sidecar fills).
       BACKUP_DIR: /app/backups
-    ports:
-      - "${APP_PORT:-8000}:8000"
+    # HTTPS-only: the app's plain-HTTP port is NOT published to the host, so all
+    # traffic must go through the Caddy TLS proxy (it reaches the app over the
+    # internal compose network, so no published port is needed). This means you
+    # MUST start with the tls profile:  docker compose --profile tls up -d --build
+    #
+    # To go back to plain HTTP on the LAN instead, uncomment the two lines below
+    # (and you can then run a plain `docker compose up -d` without Caddy):
+    # ports:
+    #   - "${APP_PORT:-8000}:8000"
     volumes:
       # Read-only view of the nightly dumps so the app can REPORT on them (it
       # never writes here — the db-backup sidecar owns this directory).
