@@ -49,6 +49,15 @@ class ShiftBase(BaseModel):
     repulped: NonNegFloat = 0
     comment: str = ""
 
+
+class ShiftWrite(ShiftBase):
+    """Base for CREATE/UPDATE only: enforces the cross-field consistency rules.
+
+    These checks must NOT live on ShiftOut — historical/imported rows can violate
+    them (the bulk importer doesn't enforce them), and running the validator on
+    the READ path would 500 the list/get endpoints when serializing such rows.
+    """
+
     @model_validator(mode="after")
     def _check_consistency(self):
         # Downtime can't exceed the scheduled time (in minutes).
@@ -67,11 +76,11 @@ class ShiftBase(BaseModel):
         return self
 
 
-class ShiftCreate(ShiftBase):
+class ShiftCreate(ShiftWrite):
     pass
 
 
-class ShiftUpdate(ShiftBase):
+class ShiftUpdate(ShiftWrite):
     pass
 
 

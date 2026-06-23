@@ -99,3 +99,36 @@ def test_negative_downtime_rejected_422(client, admin_headers):
     resp = client.post("/api/v1/shifts", headers=admin_headers,
                       json={"work_date": _date(), "shift": "Day", "downtime_min": -1})
     assert resp.status_code == 422, resp.text
+
+
+def test_inconsistent_breakdown_rejected_on_write_422(client, admin_headers):
+    # Write path keeps the consistency guard: breakdown can't exceed downtime.
+    resp = client.post("/api/v1/shifts", headers=admin_headers,
+                       json={"work_date": _date(), "shift": "Day", "qty": 10,
+                             "downtime_min": 10, "clean_min": 100, "sched_hours": 8})
+    assert resp.status_code == 422, resp.text
+
+
+def test_list_tolerates_legacy_inconsistent_rows(client, admin_headers):
+    """A row whose clean/mold/other exceed downtime_min (as the bulk importer can
+    create) must still serialize on the READ path — the consistency validator is
+    write-only, so GET /shifts returns 200 instead of 500 (regression)."""
+    from datetime import date
+    from app.core.database import SessionLocal
+    from app.models.production import ProductionShift, Shift
+
+    db = SessionLocal()
+    try:
+        db.add(ProductionShift(
+            work_date=date(2099, 1, 1), shift=Shift("Day"), qty=10,
+            downtime_min=10, clean_min=100, mold_min=0, other_min=0, sched_hours=8,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.get("/api/v1/shifts", headers=admin_headers,
+                      params={"start": "2099-01-01", "end": "2099-01-01"})
+    assert resp.status_code == 200, resp.text
+    rows = resp.json()
+    assert any(r["work_date"] == "2099-01-01" and r["clean_min"] == 100 for r in rows), rows
