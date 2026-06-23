@@ -3,6 +3,7 @@ import { api, OFFLINE_QUEUED } from '../api/client'
 import { C, fmt, fmt1 } from '../api/charts'
 import { Kpi, Card, PageHead, PageSkeleton } from '../components/ui'
 import { EntryForm } from '../components/EntryForm'
+import { RowEditModal } from '../components/RowEditModal'
 import { usePeriod, PeriodPicker } from '../components/Period'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -33,18 +34,43 @@ export default function Materials() {
   const [bales, setBales] = useState([])
   const [stock, setStock] = useState(null)
   const [showBale, setShowBale] = useState(false)
+  const [editingBale, setEditingBale] = useState(null)
+  const [err, setErr] = useState('')
 
   const load = useCallback(() => {
     if (!period) return
-    api.listBales(start, end).then(setBales)
-    api.listStock().then(setStock)
+    setErr('')
+    api.listBales(start, end).then(setBales).catch(e => setErr(e.message))
+    api.listStock().then(setStock).catch(e => setErr(e.message))
   }, [rangeKey])
 
   useEffect(() => { load() }, [load])
 
+  if (err) return (
+    <div className="main">
+      <PageHead title="Stock & Bales" sub="Raw material receipts & month-end balances"
+        right={<PeriodPicker periods={periods} period={period} setPeriod={setPeriod} />} />
+      <div className="err">{err}</div>
+    </div>
+  )
   if (stock === null) return <PageSkeleton kpis={4} cards={2} />
 
   const canEditStock = can('supervisor')
+  const canWriteBale = can('supervisor')
+  const canDeleteStock = can('manager')
+
+  const removeBale = async (id) => {
+    if (!window.confirm('Delete this bale receipt?')) return
+    try { await api.deleteBale(id); toast.ok('Bale receipt deleted.'); load() }
+    catch (e) { toast.err(e.message) }
+  }
+
+  const removeStock = async () => {
+    if (!window.confirm(`Delete the month-end stock record for ${period}?`)) return
+    try { await api.deleteStock(period); toast.ok(`Month-end stock for ${period} deleted.`); load() }
+    catch (e) { toast.err(e.message) }
+  }
+
   const totalBaleWeight = bales.reduce((s, b) => s + (b.weight_kg || 0), 0)
   const totalBaleQty = bales.reduce((s, b) => s + (b.quantity || 0), 0)
   const current = stock.find(s => s.period === period)
@@ -101,7 +127,7 @@ export default function Materials() {
         <Card span2 title="Bale Receipt Log" sub="Raw fibre received this period">
           <div className="tbl-scroll" style={{ maxHeight: 300 }}>
             <table>
-              <thead><tr><th>Date</th><th>GRN #</th><th>Weight (kg)</th><th>Quantity</th></tr></thead>
+              <thead><tr><th>Date</th><th>GRN #</th><th>Weight (kg)</th><th>Quantity</th>{canWriteBale && <th></th>}</tr></thead>
               <tbody>
                 {[...bales].reverse().map(b => (
                   <tr key={b.id}>
@@ -109,15 +135,23 @@ export default function Materials() {
                     <td style={{ textAlign: 'left' }}>{b.grn || '—'}</td>
                     <td>{b.weight_kg ? fmt(b.weight_kg) : '—'}</td>
                     <td>{b.quantity ? fmt(b.quantity) : '—'}</td>
+                    {canWriteBale && (
+                      <td><div className="row-actions">
+                        <button className="btn btn-ghost btn-sm" onClick={() => setEditingBale(b)}>Edit</button>
+                        <button className="btn btn-danger btn-sm" onClick={() => removeBale(b.id)}>Delete</button>
+                      </div></td>
+                    )}
                   </tr>
                 ))}
-                {bales.length === 0 && <tr><td colSpan={4} style={{ color: 'var(--dim)' }}>No bale receipts recorded this period.</td></tr>}
+                {bales.length === 0 && <tr><td colSpan={canWriteBale ? 5 : 4} style={{ color: 'var(--dim)' }}>No bale receipts recorded this period.</td></tr>}
               </tbody>
             </table>
           </div>
         </Card>
 
-        <Card span2 title={`Month-End Stock · ${period || ''}`} sub={canEditStock ? 'Edit balances for the selected period' : 'Read-only · supervisor access required to edit'}>
+        <Card span2 title={`Month-End Stock · ${period || ''}`}
+          sub={canEditStock ? 'Edit balances for the selected period' : 'Read-only · supervisor access required to edit'}
+          right={canDeleteStock && current && <button className="btn btn-danger btn-sm" onClick={removeStock}>Delete record</button>}>
           {canEditStock ? (
             <EntryForm
               key={period + (current ? 'e' : 'n')}
@@ -141,6 +175,21 @@ export default function Materials() {
           )}
         </Card>
       </div>
+
+      {editingBale && (
+        <RowEditModal
+          title="Edit Bale Receipt"
+          sub={`${editingBale.work_date}${editingBale.grn ? ' · ' + editingBale.grn : ''}`}
+          fields={BALE_FIELDS}
+          initial={editingBale}
+          onClose={() => setEditingBale(null)}
+          onSave={async (payload) => {
+            await api.updateBale(editingBale.id, payload)
+            toast.ok(`Updated bale receipt for ${payload.work_date}.`)
+            load()
+          }}
+        />
+      )}
     </div>
   )
 }

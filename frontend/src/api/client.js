@@ -128,6 +128,8 @@ export const api = {
   login: (username, password) =>
     request('/auth/login', { method: 'POST', form: { username, password } }),
   me: () => request('/auth/me'),
+  // Sliding-session renewal: exchange a still-valid token for a fresh one.
+  refresh: () => request('/auth/refresh', { method: 'POST' }),
   changePassword: (current_password, new_password) =>
     request('/auth/change-password', { method: 'POST', body: { current_password, new_password } }),
 
@@ -192,6 +194,7 @@ export const api = {
     return request(`/deliveries?${q}`)
   },
   createDelivery: (data) => postOrQueue('delivery', '/deliveries', data),
+  updateDelivery: (id, data) => request(`/deliveries/${id}`, { method: 'PUT', body: data }),
   deleteDelivery: (id) => request(`/deliveries/${id}`, { method: 'DELETE' }),
 
   listBales: (start, end) => {
@@ -201,6 +204,8 @@ export const api = {
     return request(`/bales?${q}`)
   },
   createBale: (data) => postOrQueue('bale', '/bales', data),
+  updateBale: (id, data) => request(`/bales/${id}`, { method: 'PUT', body: data }),
+  deleteBale: (id) => request(`/bales/${id}`, { method: 'DELETE' }),
 
   listFuelDips: (start, end) => {
     const q = new URLSearchParams()
@@ -209,9 +214,20 @@ export const api = {
     return request(`/fuel-dips?${q}`)
   },
   createFuelDip: (data) => postOrQueue('fuel dip', '/fuel-dips', data),
+  updateFuelDip: (id, data) => request(`/fuel-dips/${id}`, { method: 'PUT', body: data }),
+  deleteFuelDip: (id) => request(`/fuel-dips/${id}`, { method: 'DELETE' }),
 
   listStock: () => request('/monthly-stock'),
   upsertStock: (period, data) => request(`/monthly-stock/${period}`, { method: 'PUT', body: data }),
+  deleteStock: (period) => request(`/monthly-stock/${period}`, { method: 'DELETE' }),
+
+  // KPI targets (manager+ to set). GET is open to any authenticated user.
+  listTargets: () => request('/targets'),
+  setTarget: (metric, value) => request(`/targets/${metric}`, { method: 'PUT', body: { value } }),
+  deleteTarget: (metric) => request(`/targets/${metric}`, { method: 'DELETE' }),
+
+  // Admin: latest database-backup status (age/size/staleness).
+  adminBackups: () => request('/admin/backups'),
 
   listUsers: () => request('/users'),
   createUser: (data) => request('/users', { method: 'POST', body: data }),

@@ -7,6 +7,7 @@ import { usePeriod } from '../components/Period'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { SHIFT_GROUPS, SHIFT_NUM_KEYS } from '../components/shiftFields'
+import { shiftWarnings } from '../lib/validate'
 
 const baseOpts = { responsive: true, maintainAspectRatio: false }
 
@@ -19,6 +20,7 @@ function ShiftEditModal({ shift, onClose, onSaved }) {
   })
   const [busy, setBusy] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const warnings = shiftWarnings(form)
 
   const save = async () => {
     setBusy(true)
@@ -61,6 +63,9 @@ function ShiftEditModal({ shift, onClose, onSaved }) {
       <div className="fld full"><label>Comments</label>
         <textarea value={form.comment} onChange={e => set('comment', e.target.value)} />
       </div>
+      {warnings.length > 0 && (
+        <div className="entry-warn">{warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}</div>
+      )}
     </Modal>
   )
 }
@@ -73,11 +78,13 @@ export default function Production() {
   const [shifts, setShifts] = useState([])
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState(null)
+  const [err, setErr] = useState('')
 
   const load = useCallback(() => {
     if (!rangeKey || (!start && !end)) return
-    api.summary(start, end).then(setData)
-    api.listShifts(start, end).then(setShifts)
+    setErr('')
+    api.summary(start, end).then(setData).catch(e => setErr(e.message))
+    api.listShifts(start, end).then(setShifts).catch(e => setErr(e.message))
   }, [rangeKey])
 
   useEffect(() => { setData(null); load() }, [load])
@@ -91,6 +98,12 @@ export default function Production() {
     catch (e) { toast.err(e.message) }
   }
 
+  if (err) return (
+    <div className="main">
+      <PageHead title="Production" sub="Output, mix, machine & speed" right={control} />
+      <div className="err">{err}</div>
+    </div>
+  )
   if (!data) return <PageSkeleton kpis={5} cards={4} />
 
   const days = data.by_day

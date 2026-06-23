@@ -1,0 +1,23 @@
+# Caddy reverse proxy for the Fibre Mold Plant app.
+# Used only when starting with the "tls" compose profile:
+#   docker compose --profile tls up -d --build
+#
+# SITE_ADDRESS comes from .env (e.g. https://192.168.1.50 for a LAN/IP server,
+# or https://plant.example.com if you later get a public DNS name).
+
+{$SITE_ADDRESS} {
+	# Gzip/zstd compress responses.
+	encode zstd gzip
+
+	# LAN / IP deployment: no public DNS, so issue a cert from Caddy's built-in
+	# CA (self-signed). Traffic is encrypted end-to-end; install Caddy's root CA
+	# on client PCs to clear the browser warning (see docker-compose.yml notes).
+	#
+	# If you move to a PUBLIC domain with DNS + ports 80/443 reachable, DELETE
+	# the line below — Caddy will then auto-obtain & renew a free Let's Encrypt
+	# certificate for that domain.
+	tls internal
+
+	# Forward everything to the app container (serves the UI and /api on 8000).
+	reverse_proxy app:8000
+}

@@ -22,7 +22,10 @@ from .core.config import settings
 from .core.context import set_request_id, get_request_id
 from .core.database import Base, engine, SessionLocal
 from .core.ratelimit import limiter
-from .routers import auth, users, shifts, operations, analytics, reports, audit, notifications, bi, ai
+from .routers import (
+    auth, users, shifts, operations, analytics, reports, audit,
+    notifications, bi, ai, targets, admin,
+)
 from .services.seed import run_seed
 from .services.audit import register_audit_listeners
 from .services.scheduler import start_scheduler, shutdown_scheduler
@@ -73,10 +76,16 @@ app = FastAPI(title=settings.project_name, lifespan=lifespan)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 
+# Origins come from settings (CORS_ORIGINS); default "*" keeps the LAN-open
+# behaviour. The CORS spec forbids combining a "*" origin with credentialed
+# requests (browsers reject it), so we only enable credentials when an explicit
+# allow-list is configured. Auth here uses Authorization: Bearer headers, not
+# cookies, so the wildcard path does not need credentials anyway.
+_cors_origins = settings.cors_origin_list
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # local network; tighten if exposed
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -218,6 +227,8 @@ app.include_router(audit.router)
 app.include_router(notifications.router)
 app.include_router(bi.router)
 app.include_router(ai.router)
+app.include_router(targets.router)
+app.include_router(admin.router)
 
 
 @app.get("/api/health")

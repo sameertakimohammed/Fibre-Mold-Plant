@@ -15,14 +15,21 @@ export default function Downtime() {
   const { start, end, rangeKey, control } = usePeriod()
   const [data, setData] = useState(null)
   const [shifts, setShifts] = useState([])
+  const [err, setErr] = useState('')
 
   useEffect(() => {
     if (!rangeKey || (!start && !end)) return
-    setData(null)
-    api.summary(start, end).then(setData)
-    api.listShifts(start, end).then(setShifts)
+    setData(null); setErr('')
+    api.summary(start, end).then(setData).catch(e => setErr(e.message))
+    api.listShifts(start, end).then(setShifts).catch(e => setErr(e.message))
   }, [rangeKey])
 
+  if (err) return (
+    <div className="main">
+      <PageHead title="Downtime" sub="Lost time, causes & worst stoppages" right={control} />
+      <div className="err">{err}</div>
+    </div>
+  )
   if (!data) return <PageSkeleton kpis={4} cards={4} />
 
   const k = data.kpis

@@ -44,6 +44,18 @@ def create_delivery(body: DeliveryBase, db: Session = Depends(get_db),
     return d
 
 
+@router.put("/deliveries/{item_id}", response_model=DeliveryOut)
+def update_delivery(item_id: int, body: DeliveryBase, db: Session = Depends(get_db),
+                    _: User = Depends(require_role(Role.supervisor))):
+    d = db.get(Delivery, item_id)
+    if not d or d.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Not found")
+    for k, v in body.model_dump().items():
+        setattr(d, k, v)
+    db.commit(); db.refresh(d)
+    return d
+
+
 @router.delete("/deliveries/{item_id}", status_code=204)
 def delete_delivery(item_id: int, db: Session = Depends(get_db),
                     user: User = Depends(require_role(Role.supervisor))):
@@ -78,6 +90,18 @@ def create_bale(body: BaleBase, db: Session = Depends(get_db),
                 user: User = Depends(require_role(Role.supervisor))):
     b = BaleReceipt(**body.model_dump(), created_by=user.id)
     db.add(b); db.commit(); db.refresh(b)
+    return b
+
+
+@router.put("/bales/{item_id}", response_model=BaleOut)
+def update_bale(item_id: int, body: BaleBase, db: Session = Depends(get_db),
+                _: User = Depends(require_role(Role.supervisor))):
+    b = db.get(BaleReceipt, item_id)
+    if not b or b.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Not found")
+    for k, v in body.model_dump().items():
+        setattr(b, k, v)
+    db.commit(); db.refresh(b)
     return b
 
 
@@ -117,6 +141,18 @@ def create_fuel_dip(body: FuelDipBase, db: Session = Depends(get_db),
     return f
 
 
+@router.put("/fuel-dips/{item_id}", response_model=FuelDipOut)
+def update_fuel_dip(item_id: int, body: FuelDipBase, db: Session = Depends(get_db),
+                    _: User = Depends(require_role(Role.supervisor))):
+    f = db.get(FuelDip, item_id)
+    if not f or f.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Not found")
+    for k, v in body.model_dump().items():
+        setattr(f, k, v)
+    db.commit(); db.refresh(f)
+    return f
+
+
 @router.delete("/fuel-dips/{item_id}", status_code=204)
 def delete_fuel_dip(item_id: int, db: Session = Depends(get_db),
                     user: User = Depends(require_role(Role.supervisor))):
@@ -140,15 +176,33 @@ def list_stock(db: Session = Depends(get_db), _: User = Depends(get_current_user
 @router.put("/monthly-stock/{period}", response_model=MonthlyStockOut)
 def upsert_stock(period: str, body: MonthlyStockBase, db: Session = Depends(get_db),
                  _: User = Depends(require_role(Role.supervisor))):
-    row = (db.query(MonthlyStock)
-           .filter(MonthlyStock.period == period,
-                   MonthlyStock.deleted_at.is_(None))
-           .first())
+    # `period` is uniquely constrained, so match WITHOUT the soft-delete filter:
+    # a soft-deleted period still occupies the unique slot, so we revive+update it
+    # (clearing deleted_at) rather than inserting a colliding new row.
+    row = db.query(MonthlyStock).filter(MonthlyStock.period == period).first()
     if row:
         for k, v in body.model_dump().items():
             setattr(row, k, v)
+        row.deleted_at = None
+        row.deleted_by = None
     else:
         row = MonthlyStock(**body.model_dump())
         db.add(row)
     db.commit(); db.refresh(row)
     return row
+
+
+@router.delete("/monthly-stock/{period}", status_code=204)
+def delete_stock(period: str, db: Session = Depends(get_db),
+                 user: User = Depends(require_role(Role.manager))):
+    row = (db.query(MonthlyStock)
+           .filter(MonthlyStock.period == period,
+                   MonthlyStock.deleted_at.is_(None))
+           .first())
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    # Soft delete: list_stock filters deleted_at IS NULL; a later upsert for the
+    # same period revives this row (see upsert_stock).
+    row.deleted_at = datetime.now(timezone.utc)
+    row.deleted_by = user.id
+    db.commit()

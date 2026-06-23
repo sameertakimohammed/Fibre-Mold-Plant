@@ -4,6 +4,7 @@ import { api, OFFLINE_QUEUED } from '../api/client'
 import { C, gridX, gridY, fmt, dlabel } from '../api/charts'
 import { Kpi, Card, PageHead, PageSkeleton } from '../components/ui'
 import { EntryForm } from '../components/EntryForm'
+import { RowEditModal } from '../components/RowEditModal'
 import { usePeriod } from '../components/Period'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -27,11 +28,14 @@ export default function Deliveries() {
   const [data, setData] = useState(null)
   const [list, setList] = useState([])
   const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [err, setErr] = useState('')
 
   const load = useCallback(() => {
     if (!rangeKey || (!start && !end)) return
-    api.summary(start, end).then(setData)
-    api.listDeliveries(start, end).then(setList)
+    setErr('')
+    api.summary(start, end).then(setData).catch(e => setErr(e.message))
+    api.listDeliveries(start, end).then(setList).catch(e => setErr(e.message))
   }, [rangeKey])
 
   useEffect(() => { setData(null); load() }, [load])
@@ -42,13 +46,22 @@ export default function Deliveries() {
     catch (e) { toast.err(e.message) }
   }
 
+  if (err) return (
+    <div className="main">
+      <PageHead title="Deliveries & Stock" sub="Dispatch flow vs production" right={control} />
+      <div className="err">{err}</div>
+    </div>
+  )
   if (!data) return <PageSkeleton kpis={4} cards={3} />
 
   const k = data.kpis
   const days = data.by_day
   const dbd = data.deliveries_by_day
   const allDates = [...new Set([...days.map(d => d.date), ...Object.keys(dbd)])].sort()
-  const cust = Object.entries(data.deliveries_by_customer).slice(0, 8)
+  const custAll = Object.entries(data.deliveries_by_customer)
+  const cust = custAll.slice(0, 8)
+  const custTotal = custAll.reduce((s, [, v]) => s + v, 0)
+  const topCust = custAll[0]
   const canWrite = can('supervisor')
   const canDelete = can('supervisor')
 
@@ -108,17 +121,18 @@ export default function Deliveries() {
           </div>
         </Card>
 
-        <Card title="Deliveries by Customer" sub="Total trays dispatched (all types)">
+        <Card title="Deliveries by Customer"
+          sub={topCust ? `Top: ${topCust[0]} · ${Math.round(topCust[1] / (custTotal || 1) * 100)}% of ${fmt(custTotal)} trays` : 'Total trays dispatched (all types)'}>
           <div className="chart-box">
             <Bar data={{ labels: cust.map(c => c[0]), datasets: [{ data: cust.map(c => c[1]), backgroundColor: C.green, borderRadius: 4 }] }}
-              options={{ ...baseOpts, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: gridY, y: { grid: { display: false } } } }} />
+              options={{ ...baseOpts, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${fmt(ctx.parsed.x)} trays · ${Math.round(ctx.parsed.x / (custTotal || 1) * 100)}%` } } }, scales: { x: gridY, y: { grid: { display: false } } } }} />
           </div>
         </Card>
 
         <Card title="Delivery Log" sub="All dispatches recorded">
           <div className="tbl-scroll" style={{ maxHeight: 280 }}>
             <table>
-              <thead><tr><th>Date</th><th>Customer</th><th>30's</th><th>12's</th><th>Pallets</th>{canDelete && <th></th>}</tr></thead>
+              <thead><tr><th>Date</th><th>Customer</th><th>30's</th><th>12's</th><th>Pallets</th>{(canWrite || canDelete) && <th></th>}</tr></thead>
               <tbody>
                 {list.map(d => (
                   <tr key={d.id}>
@@ -126,15 +140,35 @@ export default function Deliveries() {
                     <td>{d.tray30 ? fmt(d.tray30) : '—'}</td>
                     <td>{(d.tray12n + d.tray12ff) ? fmt(d.tray12n + d.tray12ff) : '—'}</td>
                     <td>{d.pallets || '—'}</td>
-                    {canDelete && <td><button className="btn btn-danger btn-sm" onClick={() => remove(d.id)}>Delete</button></td>}
+                    {(canWrite || canDelete) && (
+                      <td><div className="row-actions">
+                        {canWrite && <button className="btn btn-ghost btn-sm" onClick={() => setEditing(d)}>Edit</button>}
+                        {canDelete && <button className="btn btn-danger btn-sm" onClick={() => remove(d.id)}>Delete</button>}
+                      </div></td>
+                    )}
                   </tr>
                 ))}
-                {list.length === 0 && <tr><td colSpan={canDelete ? 6 : 5} style={{ color: 'var(--dim)' }}>No deliveries recorded this period.</td></tr>}
+                {list.length === 0 && <tr><td colSpan={(canWrite || canDelete) ? 6 : 5} style={{ color: 'var(--dim)' }}>No deliveries recorded this period.</td></tr>}
               </tbody>
             </table>
           </div>
         </Card>
       </div>
+
+      {editing && (
+        <RowEditModal
+          title="Edit Delivery"
+          sub={`${editing.work_date} · ${editing.company}`}
+          fields={DELIVERY_FIELDS}
+          initial={editing}
+          onClose={() => setEditing(null)}
+          onSave={async (payload) => {
+            await api.updateDelivery(editing.id, payload)
+            toast.ok(`Updated delivery for ${payload.company}.`)
+            load()
+          }}
+        />
+      )}
     </div>
   )
 }

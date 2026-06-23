@@ -9,6 +9,7 @@ from ..core.database import get_db
 from ..models.user import User
 from ..deps import get_current_user
 from ..services.report_build import build_report_xlsx
+from ..services.report_csv import build_report_csv
 from ..services.report_pdf import build_report_pdf
 from ..services.report_pptx import build_report_pptx
 from ..services.report_monthend import build_monthend_xlsx, build_monthend_pdf
@@ -27,6 +28,7 @@ router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 PDF_MIME = "application/pdf"
 PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+CSV_MIME = "text/csv"
 
 
 def _stream(data: bytes, fname: str, mime: str) -> StreamingResponse:
@@ -65,6 +67,20 @@ def report_pdf(
     else:
         data, fname = build_report_pdf(db, start, end, period)
     return _stream(data, fname, PDF_MIME)
+
+
+@router.get("/report.csv")
+def report_csv(
+    start: date | None = Query(None),
+    end: date | None = Query(None),
+    period: str = Query("Production"),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    # Raw shift-detail rows for spreadsheet analysis (one table, so no month-end
+    # variant — that template only makes sense as a formatted workbook).
+    data, fname = build_report_csv(db, start, end, period)
+    return _stream(data, fname, CSV_MIME)
 
 
 @router.get("/report.pptx")

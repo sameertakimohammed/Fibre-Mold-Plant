@@ -3,6 +3,7 @@ import { api, OFFLINE_QUEUED } from '../api/client'
 import { PageHead } from '../components/ui'
 import { SHIFT_GROUPS, SHIFT_NUM_KEYS } from '../components/shiftFields'
 import { useToast } from '../context/ToastContext'
+import { shiftWarnings } from '../lib/validate'
 
 const empty = () => {
   const o = { work_date: '', shift: 'Day', comment: '', sched_hours: 8 }
@@ -16,6 +17,7 @@ export default function LogShift() {
   const [busy, setBusy] = useState(false)
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const warnings = shiftWarnings(form)
 
   const submit = async () => {
     if (!form.work_date) { toast.err('Pick a date first'); return }
@@ -74,6 +76,12 @@ export default function LogShift() {
             <textarea value={form.comment} placeholder="e.g. 30mins — washing of molds, removing products…" onChange={e => set('comment', e.target.value)} />
           </div>
         </div>
+
+        {warnings.length > 0 && (
+          <div className="entry-warn">
+            {warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+          </div>
+        )}
 
         <div className="form-actions">
           <button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? 'Saving…' : 'Save Shift'}</button>

@@ -42,7 +42,19 @@ export function Spark({ data = [], color = '#f5a623', height = 30 }) {
   )
 }
 
-export function Kpi({ label, value, unit, note, accent, delta, spark, sparkColor }) {
+// target = { text, pct, met }  — attainment vs a management goal.
+function TargetBar({ target }) {
+  if (!target || target.pct == null || !isFinite(target.pct)) return null
+  const w = Math.max(0, Math.min(100, target.pct))
+  return (
+    <div className={`k-target ${target.met ? 'met' : 'miss'}`} title={target.text}>
+      <div className="kt-track"><span style={{ width: w + '%' }} /></div>
+      <div className="kt-lbl">{target.text}</div>
+    </div>
+  )
+}
+
+export function Kpi({ label, value, unit, note, accent, delta, spark, sparkColor, target }) {
   return (
     <div className="kpi" style={{ '--accent': accent }}>
       <div className="k-top">
@@ -52,6 +64,7 @@ export function Kpi({ label, value, unit, note, accent, delta, spark, sparkColor
       <div className="k-val">{value}{unit && <span className="k-unit">{unit}</span>}</div>
       {note && <div className="k-note">{note}</div>}
       {spark && spark.length > 1 && <Spark data={spark} color={sparkColor || accent} />}
+      <TargetBar target={target} />
     </div>
   )
 }

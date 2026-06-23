@@ -32,6 +32,9 @@ export default function Reports() {
   const [day, setDay] = useState('')
   const [weekRef, setWeekRef] = useState('')
   const [month, setMonth] = useState('')
+  // Multi-month PowerPoint deck range (independent of the single-period pickers).
+  const [pptFrom, setPptFrom] = useState('')
+  const [pptTo, setPptTo] = useState('')
   const [summary, setSummary] = useState(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState('')
@@ -48,6 +51,9 @@ export default function Reports() {
         setMonth(latest)
         setDay(lastDayOf(latest))
         setWeekRef(lastDayOf(latest))
+        // Default the deck to the most recent ~3 months (periods are newest-first).
+        setPptTo(latest)
+        setPptFrom(r.periods[Math.min(2, r.periods.length - 1)])
       } else {
         const today = isoLocal(new Date())
         setDay(today); setWeekRef(today)
@@ -70,6 +76,18 @@ export default function Reports() {
     if (range.start === range.end) return range.start
     return `${range.start} → ${range.end}`
   }, [range])
+
+  // Multi-month deck range: normalise From/To (YYYY-MM strings sort correctly).
+  const deck = useMemo(() => {
+    if (!pptFrom || !pptTo) return null
+    const lo = pptFrom <= pptTo ? pptFrom : pptTo
+    const hi = pptFrom <= pptTo ? pptTo : pptFrom
+    const months = (Number(hi.slice(0, 4)) - Number(lo.slice(0, 4))) * 12
+      + (Number(hi.slice(5)) - Number(lo.slice(5))) + 1
+    return { start: `${lo}-01`, end: lastDayOf(hi), months }
+  }, [pptFrom, pptTo])
+  const deckSpan = deck ? `${fmtMonth(deck.start.slice(0, 7))} → ${fmtMonth(deck.end.slice(0, 7))}` : '—'
+  const deckMonths = deck ? deck.months : 0
 
   // Live preview of the figures the report will contain.
   useEffect(() => {
@@ -96,6 +114,18 @@ export default function Reports() {
     try {
       await api.downloadReport(range.start, range.end, { format, period })
       toast.ok(`${period === 'MonthEnd' ? 'Month End ' : ''}${format.toUpperCase()} report downloaded.`)
+    } catch (e) {
+      toast.err(e.message || 'Report failed')
+    } finally { setBusy('') }
+  }
+
+  // The multi-month PowerPoint deck (per-month detail + trend slides).
+  const downloadDeck = async () => {
+    if (!deck) return
+    setBusy('pptx')
+    try {
+      await api.downloadReport(deck.start, deck.end, { format: 'pptx', period: 'Monthly' })
+      toast.ok(`PowerPoint deck downloaded (${deckMonths} month${deckMonths > 1 ? 's' : ''}).`)
     } catch (e) {
       toast.err(e.message || 'Report failed')
     } finally { setBusy('') }
@@ -146,13 +176,35 @@ export default function Reports() {
           <button className="btn btn-ghost btn-sm" disabled={!range || busy} onClick={() => download('pdf')}>
             {busy === 'pdf' ? 'Preparing…' : '⤓ PDF'}
           </button>
-          {cadence === 'monthly' && (
-            <button className="btn btn-ghost btn-sm" disabled={!range || busy} onClick={() => download('pptx')}>
-              {busy === 'pptx' ? 'Preparing…' : '⤓ PowerPoint'}
-            </button>
-          )}
-          {cadence === 'monthly' && <span className="rep-hint">PowerPoint is a management summary deck</span>}
+          <button className="btn btn-ghost btn-sm" disabled={!range || busy} onClick={() => download('csv')}>
+            {busy === 'csv' ? 'Preparing…' : '⤓ CSV'}
+          </button>
         </div>
+
+        {cadence === 'monthly' && (
+          <div style={{ marginTop: 10, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+            <div className="rep-actions" style={{ alignItems: 'center' }}>
+              <span className="rep-hint" style={{ marginRight: 'auto' }}>
+                <strong>PowerPoint deck</strong> — per-month detail + overall trend slides across a range
+              </span>
+              <span className="rep-hint">From</span>
+              <select value={pptFrom} onChange={e => setPptFrom(e.target.value)}>
+                {periods.map(p => <option key={p} value={p}>{fmtMonth(p)}</option>)}
+              </select>
+              <span className="rep-hint">to</span>
+              <select value={pptTo} onChange={e => setPptTo(e.target.value)}>
+                {periods.map(p => <option key={p} value={p}>{fmtMonth(p)}</option>)}
+              </select>
+              <button className="btn btn-primary btn-sm" disabled={!pptFrom || !pptTo || busy} onClick={downloadDeck}>
+                {busy === 'pptx' ? 'Preparing…' : '⤓ PowerPoint'}
+              </button>
+            </div>
+            <div className="rep-span" style={{ marginTop: 8 }}>
+              Deck period: <strong>{deckSpan}</strong>
+              {deckMonths > 1 && <span className="rep-hint"> · {deckMonths} months (adds trend-comparison slides)</span>}
+            </div>
+          </div>
+        )}
 
         {cadence === 'monthly' && (
           <div className="rep-actions" style={{ marginTop: 10, borderTop: '1px solid var(--line)', paddingTop: 12 }}>

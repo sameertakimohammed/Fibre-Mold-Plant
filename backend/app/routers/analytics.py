@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from ..core.database import get_db
 from ..models.production import ProductionShift
 from ..models.operations import Delivery, MonthlyStock
+from ..models.target import KpiTarget
 from ..models.user import User
 from ..deps import get_current_user
 
@@ -221,12 +222,33 @@ def summary(
 
     insights = _build_insights(shifts, by_day, agg, deliveries)
 
+    # ---- Management targets (rates, comparable across any range) ----
+    targets = {t.metric: t.value for t in db.query(KpiTarget).all()}
+
+    # ---- Run-rate forecast for an in-progress range (e.g. the current month) ----
+    # Projects period output linearly from the elapsed-vs-total calendar days.
+    # Only meaningful while the window is still open (today falls inside it).
+    forecast = None
+    if start and end:
+        today = date.today()
+        total_days = (end - start).days + 1
+        elapsed = (min(end, today) - start).days + 1
+        if 0 < elapsed < total_days and agg["total_qty"] > 0:
+            forecast = {
+                "projected_qty": agg["total_qty"] * total_days / elapsed,
+                "elapsed_days": elapsed,
+                "total_days": total_days,
+                "as_of": min(end, today).isoformat(),
+            }
+
     kpis = {**agg,
             "deliv_30": deliv_30, "deliv_12": deliv_12, "deliv_pallets": deliv_pallets}
 
     return {
         "kpis": kpis,
         "deltas": deltas,
+        "targets": targets,
+        "forecast": forecast,
         "insights": insights,
         "prod_totals": prod_totals,
         "prod_labels": {k: n for k, n in PROD_FIELDS},

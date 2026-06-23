@@ -76,6 +76,25 @@ class Settings(BaseSettings):
     # How long (minutes) the account stays locked; auto-unlocks after this.
     lockout_minutes: int = 15
 
+    # ── Backups ─────────────────────────────────────────────────────────────
+    # Directory the nightly pg_dump sidecar writes to (see docker-compose.yml).
+    # Mounted read-only into the app container so the admin "Backups" panel can
+    # report the latest dump's age/size. Empty or missing -> panel reports
+    # "not configured" (e.g. local SQLite dev, where there is no sidecar).
+    backup_dir: str = "backups"
+    # A backup older than this many hours is flagged stale (the sidecar runs
+    # @daily, so >36h means at least one nightly dump was missed).
+    backup_stale_hours: int = 36
+
+    # ── CORS ────────────────────────────────────────────────────────────────
+    # Comma-separated list of browser origins allowed to call the API. The
+    # default "*" preserves the open-on-the-LAN behaviour this plant relies on.
+    # Set CORS_ORIGINS to an explicit list (e.g.
+    # "https://plant.golden.com.fj,https://10.0.0.5") before exposing the app
+    # beyond the local network. See cors_origin_list / main.py for how this
+    # interacts with credentialed requests.
+    cors_origins: str = "*"
+
     # App
     project_name: str = "Fibre Mold Plant"
     first_admin_username: str = "admin"
@@ -174,6 +193,14 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         extra = "ignore"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """Parsed CORS origins. Empty or "*" means allow any origin."""
+        raw = (self.cors_origins or "").strip()
+        if not raw or raw == "*":
+            return ["*"]
+        return [o.strip() for o in raw.split(",") if o.strip()]
 
     @model_validator(mode="after")
     def _enforce_secure_config(self) -> "Settings":

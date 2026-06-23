@@ -18,6 +18,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 from .report_data import collect_report_data, report_filename
+from .report_trends import collect_trend_data, deck_narrative
 
 AMBER = "F5A623"
 INK = "1A1205"
@@ -121,6 +122,34 @@ def build_report_xlsx(
             c.border = BORDER
     dl.freeze_panes = "A2"
     _autofit(dl)
+
+    # ---- AI Improvement Plan sheet (only when AI is enabled & returns one) ----
+    narrative = deck_narrative(collect_trend_data(db, start, end))
+    plan = narrative.get("improvement_plan") if narrative else None
+    if plan:
+        ip = wb.create_sheet("Improvement Plan")
+        ip["A1"] = "AI Improvement Plan"
+        ip["A1"].font = TITLE_FONT
+        overall = narrative.get("overall_summary")
+        if overall:
+            ip["A2"] = overall
+            ip["A2"].font = Font(italic=True, color="667085", name="Arial", size=10)
+            ip["A2"].alignment = Alignment(wrap_text=True, vertical="top")
+            ip.merge_cells("A2:D2")
+            ip.row_dimensions[2].height = 30
+        _header_row(ip, 4, ["#", "Issue", "Detail", "Recommended action"])
+        for i, item in enumerate(plan, 1):
+            vals = [i, str(item.get("title", "")), str(item.get("detail", "")),
+                    str(item.get("action", ""))]
+            for j, v in enumerate(vals, 1):
+                c = ip.cell(row=4 + i, column=j, value=v)
+                c.border = BORDER
+                c.alignment = Alignment(wrap_text=True, vertical="top",
+                                        horizontal="center" if j == 1 else "left")
+        ip.column_dimensions["A"].width = 5
+        ip.column_dimensions["B"].width = 30
+        ip.column_dimensions["C"].width = 55
+        ip.column_dimensions["D"].width = 45
 
     buf = io.BytesIO()
     wb.save(buf)

@@ -322,6 +322,29 @@ def me(user: User = Depends(get_current_user)):
     return user
 
 
+@router.post("/refresh", response_model=Token)
+@limiter.limit("30/minute")
+def refresh(request: Request, user: User = Depends(get_current_user)):
+    """Sliding-session renewal: exchange a still-valid token for a fresh one.
+
+    get_current_user already enforces the full validity contract (signature,
+    expiry, is_active, and the password_changed_at revocation check), so only a
+    legitimately-authenticated caller reaches here. The client calls this shortly
+    before the access token expires so a 12-hour shift never gets logged out
+    mid-shift, WITHOUT lengthening the token's lifetime.
+
+    NOTE: this deliberately keeps the existing Authorization: Bearer model
+    (token in the client). A true httpOnly refresh-cookie split needs TLS, which
+    this LAN/HTTP deployment does not yet have; switching storage without it
+    would add complexity but no real security. Revisit once TLS is in place.
+    """
+    token = create_access_token(subject=user.username, role=user.role.value)
+    return Token(
+        access_token=token, role=user.role, full_name=user.full_name,
+        username=user.username, must_change_password=user.must_change_password,
+    )
+
+
 @router.post("/change-password")
 def change_password(body: PasswordChange, user: User = Depends(get_current_user),
                     db: Session = Depends(get_db)):

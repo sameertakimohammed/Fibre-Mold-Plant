@@ -4,8 +4,11 @@ import { api, OFFLINE_QUEUED } from '../api/client'
 import { C, gridX, gridY, fmt, fmt1, dlabel } from '../api/charts'
 import { Kpi, Card, PageHead, PageSkeleton, Empty } from '../components/ui'
 import { EntryForm } from '../components/EntryForm'
+import { RowEditModal } from '../components/RowEditModal'
 import { usePeriod } from '../components/Period'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
+import { fuelDipWarnings } from '../lib/validate'
 
 const baseOpts = { responsive: true, maintainAspectRatio: false }
 
@@ -22,19 +25,37 @@ const DIP_FIELDS = [
 export default function Fuel() {
   const { start, end, rangeKey, control } = usePeriod()
   const { can } = useAuth()
+  const toast = useToast()
   const [data, setData] = useState(null)
   const [dips, setDips] = useState([])
   const [price, setPrice] = useState(2.4)
   const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [err, setErr] = useState('')
 
   const load = useCallback(() => {
     if (!rangeKey || (!start && !end)) return
-    api.summary(start, end).then(setData)
-    api.listFuelDips(start, end).then(setDips)
+    setErr('')
+    api.summary(start, end).then(setData).catch(e => setErr(e.message))
+    api.listFuelDips(start, end).then(setDips).catch(e => setErr(e.message))
   }, [rangeKey])
 
   useEffect(() => { setData(null); load() }, [load])
 
+  const canWrite = can('supervisor')
+
+  const removeDip = async (id) => {
+    if (!window.confirm('Delete this fuel-dip reading?')) return
+    try { await api.deleteFuelDip(id); toast.ok('Fuel dip deleted.'); load() }
+    catch (e) { toast.err(e.message) }
+  }
+
+  if (err) return (
+    <div className="main">
+      <PageHead title="Fuel & Energy" sub="Diesel consumption, efficiency & cost" right={control} />
+      <div className="err">{err}</div>
+    </div>
+  )
   if (!data) return <PageSkeleton kpis={4} cards={3} />
 
   const k = data.kpis
@@ -71,6 +92,7 @@ export default function Fuel() {
               <EntryForm
                 fields={DIP_FIELDS}
                 submitLabel="Save Dip"
+                warn={fuelDipWarnings}
                 hint="Tank dip readings — recorded separately from the shift fuel figures."
                 onSubmit={async (payload) => {
                   const res = await api.createFuelDip(payload)
@@ -116,7 +138,7 @@ export default function Fuel() {
         <Card span2 title="Fuel Dip Log" sub="Manual tank readings recorded this period">
           <div className="tbl-scroll" style={{ maxHeight: 300 }}>
             <table>
-              <thead><tr><th>Date</th><th>Shift</th><th>Open L</th><th>Close L</th><th>Usage L</th><th>Received L</th><th>Note</th></tr></thead>
+              <thead><tr><th>Date</th><th>Shift</th><th>Open L</th><th>Close L</th><th>Usage L</th><th>Received L</th><th>Note</th>{canWrite && <th></th>}</tr></thead>
               <tbody>
                 {[...dips].reverse().map(d => (
                   <tr key={d.id}>
@@ -127,14 +149,36 @@ export default function Fuel() {
                     <td>{d.actual_usage ? fmt(d.actual_usage) : '—'}</td>
                     <td>{d.received ? fmt(d.received) : '—'}</td>
                     <td style={{ textAlign: 'left', color: 'var(--mut)', fontSize: 12 }}>{d.note || '—'}</td>
+                    {canWrite && (
+                      <td><div className="row-actions">
+                        <button className="btn btn-ghost btn-sm" onClick={() => setEditing(d)}>Edit</button>
+                        <button className="btn btn-danger btn-sm" onClick={() => removeDip(d.id)}>Delete</button>
+                      </div></td>
+                    )}
                   </tr>
                 ))}
-                {dips.length === 0 && <tr><td colSpan={7} style={{ color: 'var(--dim)' }}>No dip readings recorded this period.</td></tr>}
+                {dips.length === 0 && <tr><td colSpan={canWrite ? 8 : 7} style={{ color: 'var(--dim)' }}>No dip readings recorded this period.</td></tr>}
               </tbody>
             </table>
           </div>
         </Card>
       </div>
+
+      {editing && (
+        <RowEditModal
+          title="Edit Fuel Dip"
+          sub={`${editing.work_date} · ${editing.shift}`}
+          fields={DIP_FIELDS}
+          initial={editing}
+          warn={fuelDipWarnings}
+          onClose={() => setEditing(null)}
+          onSave={async (payload) => {
+            await api.updateFuelDip(editing.id, payload)
+            toast.ok(`Updated ${payload.shift} dip for ${payload.work_date}.`)
+            load()
+          }}
+        />
+      )}
     </div>
   )
 }
