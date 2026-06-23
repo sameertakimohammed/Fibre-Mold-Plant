@@ -9,7 +9,7 @@ from ..core.security import verify_password, create_access_token, hash_password
 from ..core.config import settings
 from ..core.context import AuditActor, set_audit_actor
 from ..models.user import User, Role
-from ..schemas.auth import Token, UserOut, PasswordChange
+from ..schemas.auth import Token, UserOut, PasswordChange, MIN_PASSWORD_LEN
 from ..deps import get_current_user
 from ..services.audit import record_event
 from ..core.ratelimit import limiter
@@ -135,15 +135,17 @@ def _ad_member_group_cns(username: str, password: str) -> list[str]:
     cns: list[str] = []
     try:
         from ldap3 import Server, Connection, ALL, SUBTREE
+        from ldap3.utils.conv import escape_filter_chars
         server = Server(settings.ad_server, get_info=ALL, connect_timeout=5)
         upn = f"{username}@{settings.ad_domain}"
         conn = Connection(server, user=upn, password=password,
                           auto_bind=True, receive_timeout=5)
         try:
             # sAMAccountName match is the most reliable across AD setups.
+            # Escape the username so it can't inject into the LDAP filter.
             conn.search(
                 search_base=settings.ad_base_dn,
-                search_filter=f"(sAMAccountName={username})",
+                search_filter=f"(sAMAccountName={escape_filter_chars(username)})",
                 search_scope=SUBTREE,
                 attributes=["memberOf"],
             )
@@ -355,8 +357,9 @@ def change_password(body: PasswordChange, user: User = Depends(get_current_user)
         )
     if not verify_password(body.current_password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
-    if len(body.new_password) < 6:
-        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+    if len(body.new_password) < MIN_PASSWORD_LEN:
+        raise HTTPException(status_code=400,
+                            detail=f"New password must be at least {MIN_PASSWORD_LEN} characters")
     user.hashed_password = hash_password(body.new_password)
     user.must_change_password = False
     # Revoke all tokens issued before now (their iat predates this instant).

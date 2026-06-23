@@ -91,6 +91,26 @@ app.add_middleware(
 )
 
 
+# Defense-in-depth HTTP response headers, applied to every response. The CSP is
+# tuned for this same-origin SPA: scripts only from self (the built bundle —
+# no inline scripts), styles allow inline (React style props), images allow data:
+# URIs, framing denied (clickjacking), and everything else locked to 'self'.
+SECURITY_HEADERS = {
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+    "Content-Security-Policy": (
+        "default-src 'self'; base-uri 'self'; object-src 'none'; "
+        "frame-ancestors 'none'; img-src 'self' data:; "
+        "style-src 'self' 'unsafe-inline'; script-src 'self'; "
+        "connect-src 'self'; font-src 'self' data:; worker-src 'self'; "
+        "manifest-src 'self'"
+    ),
+}
+
+
 @app.middleware("http")
 async def request_context_middleware(request: Request, call_next):
     request_id = uuid.uuid4().hex
@@ -114,6 +134,8 @@ async def request_context_middleware(request: Request, call_next):
         raise
     duration_ms = round((time.perf_counter() - start) * 1000, 2)
     response.headers["X-Request-ID"] = request_id
+    for _h, _v in SECURITY_HEADERS.items():
+        response.headers.setdefault(_h, _v)
     access_logger.info(
         "request",
         extra={
