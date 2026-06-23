@@ -32,10 +32,18 @@ def test_duplicate_detected_after_lowercasing(client, admin_headers):
 
 
 def test_short_password_rejected_422(client, admin_headers):
-    # password min_length is 6 (UserCreate schema) -> 5 chars fails validation.
+    # password min_length is 8 (UserCreate schema) -> 5 chars fails validation.
     resp = client.post("/api/v1/users", headers=admin_headers,
                       json={"username": "shortpw", "full_name": "Short",
                             "password": "12345", "role": "operator"})
+    assert resp.status_code == 422, resp.text
+
+
+def test_seven_char_password_rejected_422(client, admin_headers):
+    # Enforces the raised 8-char floor: 7 chars must still fail.
+    resp = client.post("/api/v1/users", headers=admin_headers,
+                      json={"username": "sevenpw", "full_name": "Seven",
+                            "password": "1234567", "role": "operator"})
     assert resp.status_code == 422, resp.text
 
 

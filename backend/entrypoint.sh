@@ -64,5 +64,10 @@ echo "[entrypoint] applying migrations (alembic upgrade head)..."
 $ALEMBIC upgrade head
 
 # --- 4. Start the application ---
+# --proxy-headers + forwarded-allow-ips: trust X-Forwarded-For/Proto from the
+# reverse proxy (Traefik/Caddy) so the app sees the REAL client IP — needed for
+# accurate audit-log IPs and correct per-client rate limiting. The app is only
+# reachable via the proxy (no published port), so trusting all upstreams is safe.
 echo "[entrypoint] starting uvicorn."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+exec uvicorn app.main:app --host 0.0.0.0 --port 8000 \
+    --proxy-headers --forwarded-allow-ips="*"

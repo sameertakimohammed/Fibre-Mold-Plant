@@ -3,6 +3,9 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from ..models.user import Role
 
+# Minimum password length (NIST 800-63B floor). Enforced on create + change.
+MIN_PASSWORD_LEN = 8
+
 
 class Token(BaseModel):
     access_token: str
@@ -21,8 +24,7 @@ class LoginRequest(BaseModel):
 class UserCreate(BaseModel):
     username: str
     full_name: str
-    # Min length matches the change_password rule (>= 6 chars).
-    password: Annotated[str, Field(min_length=6)]
+    password: Annotated[str, Field(min_length=MIN_PASSWORD_LEN)]
     role: Role = Role.operator
 
     @field_validator("username")
@@ -43,7 +45,7 @@ class UserUpdate(BaseModel):
 
 class PasswordChange(BaseModel):
     current_password: str
-    new_password: str
+    new_password: Annotated[str, Field(min_length=MIN_PASSWORD_LEN)]
 
 
 class UserOut(BaseModel):
