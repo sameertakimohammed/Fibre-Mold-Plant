@@ -12,6 +12,8 @@ const isoLocal = (dt) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt
 const lastDayOf = (period) => { const [y, m] = period.split('-').map(Number); return `${period}-${pad(new Date(y, m, 0).getDate())}` }
 
 const monthRange = (p) => { const [y, m] = p.split('-').map(Number); return { start: `${p}-01`, end: `${p}-${pad(new Date(y, m, 0).getDate())}` } }
+const curMonth = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}` }
+const monthsAgo = (n) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - n); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}` }
 const dayRange = (d) => ({ start: d, end: d })
 const weekRange = (d) => {
   const [y, m, day] = d.split('-').map(Number)
@@ -27,39 +29,20 @@ const CADENCES = [
 
 export default function Reports() {
   const toast = useToast()
-  const [periods, setPeriods] = useState([])
   const [cadence, setCadence] = useState('monthly')
-  const [day, setDay] = useState('')
-  const [weekRef, setWeekRef] = useState('')
-  const [month, setMonth] = useState('')
+  // Default the pickers to the CURRENT period (today / this month) so a new
+  // month opens on itself; the calendar controls let you pick any past period.
+  const [day, setDay] = useState(isoLocal(new Date()))
+  const [weekRef, setWeekRef] = useState(isoLocal(new Date()))
+  const [month, setMonth] = useState(curMonth())
   // Multi-month PowerPoint deck range (independent of the single-period pickers).
-  const [pptFrom, setPptFrom] = useState('')
-  const [pptTo, setPptTo] = useState('')
+  const [pptFrom, setPptFrom] = useState(monthsAgo(2))
+  const [pptTo, setPptTo] = useState(curMonth())
   const [summary, setSummary] = useState(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState('')
   const [aiOn, setAiOn] = useState(false)
   const [commentary, setCommentary] = useState('')
-
-  // Seed the pickers off the latest month that actually has data, so the first
-  // view shows real numbers (today may be in an empty month).
-  useEffect(() => {
-    api.periods().then(r => {
-      setPeriods(r.periods || [])
-      if (r.periods?.length) {
-        const latest = r.periods[0]
-        setMonth(latest)
-        setDay(lastDayOf(latest))
-        setWeekRef(lastDayOf(latest))
-        // Default the deck to the most recent ~3 months (periods are newest-first).
-        setPptTo(latest)
-        setPptFrom(r.periods[Math.min(2, r.periods.length - 1)])
-      } else {
-        const today = isoLocal(new Date())
-        setDay(today); setWeekRef(today)
-      }
-    }).catch(e => setErr(e.message))
-  }, [])
 
   // Is the AI assistant configured? Drives the AI section's visibility.
   useEffect(() => { api.aiStatus().then(r => setAiOn(!!r.enabled)).catch(() => setAiOn(false)) }, [])
@@ -159,10 +142,7 @@ export default function Reports() {
               </>
             )}
             {cadence === 'monthly' && (
-              <select value={month} onChange={e => setMonth(e.target.value)}>
-                {periods.length === 0 && <option>No data</option>}
-                {periods.map(p => <option key={p} value={p}>{fmtMonth(p)}</option>)}
-              </select>
+              <input className="range-in" type="month" value={month} onChange={e => setMonth(e.target.value)} />
             )}
           </div>
         </div>
@@ -188,13 +168,9 @@ export default function Reports() {
                 <strong>PowerPoint deck</strong> — per-month detail + overall trend slides across a range
               </span>
               <span className="rep-hint">From</span>
-              <select value={pptFrom} onChange={e => setPptFrom(e.target.value)}>
-                {periods.map(p => <option key={p} value={p}>{fmtMonth(p)}</option>)}
-              </select>
+              <input className="range-in" type="month" value={pptFrom} onChange={e => setPptFrom(e.target.value)} />
               <span className="rep-hint">to</span>
-              <select value={pptTo} onChange={e => setPptTo(e.target.value)}>
-                {periods.map(p => <option key={p} value={p}>{fmtMonth(p)}</option>)}
-              </select>
+              <input className="range-in" type="month" value={pptTo} onChange={e => setPptTo(e.target.value)} />
               <button className="btn btn-primary btn-sm" disabled={!pptFrom || !pptTo || busy} onClick={downloadDeck}>
                 {busy === 'pptx' ? 'Preparing…' : '⤓ PowerPoint'}
               </button>

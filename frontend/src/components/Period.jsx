@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react'
-import { api } from '../api/client'
+import { useState } from 'react'
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const fmtP = (p) => { const [y, m] = p.split('-'); return `${MONTHS[Number(m) - 1]} ${y}` }
+// Current calendar month as YYYY-MM (local time), e.g. "2026-07".
+export function currentMonth() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 const monthRange = (p) => {
   const [y, m] = p.split('-').map(Number)
   const last = new Date(y, m, 0).getDate()
@@ -10,22 +13,15 @@ const monthRange = (p) => {
 }
 
 export function usePeriod() {
-  const [periods, setPeriods] = useState([])
+  // Default to the CURRENT month (computed at mount) rather than the latest
+  // month that happens to have data — so opening the app in a new month lands
+  // on that month automatically, even before any shift is logged.
+  const cur = currentMonth()
   const [mode, setMode] = useState('month')   // 'month' | 'range'
-  const [period, setPeriod] = useState('')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
-
-  useEffect(() => {
-    api.periods().then(r => {
-      setPeriods(r.periods)
-      if (r.periods.length) {
-        setPeriod(r.periods[0])
-        const { start, end } = monthRange(r.periods[0])
-        setFrom(start); setTo(end)
-      }
-    })
-  }, [])
+  const [period, setPeriod] = useState(cur)
+  const init = monthRange(cur)
+  const [from, setFrom] = useState(init.start)
+  const [to, setTo] = useState(init.end)
 
   let start, end
   if (mode === 'range') { start = from || undefined; end = to || undefined }
@@ -42,10 +38,8 @@ export function usePeriod() {
         <button className={mode === 'range' ? 'on' : ''} onClick={() => setMode('range')}>Range</button>
       </div>
       {mode === 'month' ? (
-        <select value={period} onChange={e => setPeriod(e.target.value)}>
-          {periods.length === 0 && <option>No data</option>}
-          {periods.map(p => <option key={p} value={p}>{fmtP(p)}</option>)}
-        </select>
+        // Native month/year calendar picker (defaults to the current month).
+        <input className="range-in" type="month" value={period} onChange={e => setPeriod(e.target.value)} />
       ) : (
         <div className="range-grp">
           <input className="range-in" type="date" value={from} onChange={e => setFrom(e.target.value)} />
@@ -56,17 +50,14 @@ export function usePeriod() {
     </div>
   )
 
-  return { periods, period, setPeriod, mode, setMode, from, to, start, end, rangeKey, range, control }
+  return { period, setPeriod, mode, setMode, from, to, start, end, rangeKey, range, control }
 }
 
-// kept for any callers still importing it
-export function PeriodPicker({ periods, period, setPeriod }) {
+// Month-only calendar picker (used where the Month|Range toggle isn't needed).
+export function PeriodPicker({ period, setPeriod }) {
   return (
     <div className="period-pick">
-      <select value={period} onChange={e => setPeriod(e.target.value)}>
-        {periods.length === 0 && <option>No data</option>}
-        {periods.map(p => <option key={p} value={p}>{fmtP(p)}</option>)}
-      </select>
+      <input className="range-in" type="month" value={period} onChange={e => setPeriod(e.target.value)} />
     </div>
   )
 }
