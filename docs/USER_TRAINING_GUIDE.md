@@ -26,7 +26,8 @@ The dashboard is the single place where the plant's daily production is recorded
 2. Enter your **username** and **password** (your supervisor/admin creates these for you).
 3. The first time you log in, you'll be asked to **set a new password** (at least 8 characters).
 
-📷 *Screenshot: the login screen*
+![Login screen](images/01-login.png)
+*Figure 1 — the login screen*
 
 > **Security:** after 5 wrong password attempts the account locks for 15 minutes, then unlocks itself. If you're locked out, wait or ask an admin.
 
@@ -36,7 +37,8 @@ The dashboard is the single place where the plant's daily production is recorded
 - **Bottom-left** — your name and role, and the **Sign out** button.
 - On a phone/tablet, tap the **☰** menu button to open the sidebar.
 
-📷 *Screenshot: the full dashboard with the sidebar labelled*
+![Dashboard layout](images/02-overview.png)
+*Figure 2 — the dashboard: sidebar, top bar, content*
 
 ---
 
@@ -62,7 +64,7 @@ Most analytics screens have a **period control** in the top-right. It opens on t
 - **Month** — click the calendar control and pick any month/year.
 - **Range** — switch to Range to choose a custom start and end date.
 
-📷 *Screenshot: the Month / Range period control on the Overview page*
+_(See Figure 2 / Figure 5 — the period control is top-right.)_
 
 ---
 
@@ -74,7 +76,8 @@ This is the most important task. Do it at the **end of every shift**, from the f
 1. In the sidebar, under **Operations**, click **Log Shift**.
 2. Pick the **Date** and the **Shift** (Day / Afternoon / Night).
 
-📷 *Screenshot: the Log Shift form*
+![Log Shift form](images/03-logshift.png)
+*Figure 3 — the Log Shift form, grouped by section*
 
 ### 5.2 Fill in the figures
 The form is grouped into sections — enter what applies; leave anything you don't have as **0**.
@@ -104,7 +107,7 @@ See **section 7** — supervisors can edit a shift and managers can delete one.
 ### 5.6 Working offline
 If the internet drops, you can still log the shift: it is saved on the device and the top bar shows a **"saved offline"** status. When the connection returns, it **syncs automatically** — you don't have to re-enter it.
 
-📷 *Screenshot: the offline/sync indicator in the top bar*
+_(The sync status shows in the top bar.)_
 
 ---
 
@@ -118,7 +121,13 @@ These screens have a **"Record …"** button that opens a short form. Fill it in
 | **Fuel & Energy** | Tank dip readings: date, shift, opening/closing dip, actual usage, diesel received, note. |
 | **Stock & Bales** | Bale receipts (date, GRN #, weight, quantity) and the month-end stock balances. |
 
-> **Note:** fuel and bale forms also show gentle warnings if a number looks inconsistent (e.g. dip usage vs opening − closing + received).
+
+
+![Deliveries](images/07-deliveries.png)
+*Figure 6 — Deliveries: record dispatches; produced-vs-delivered and top customers*
+
+![Stock & Bales](images/08-materials.png)
+*Figure 7 — Stock & Bales: bale receipts and month-end balances*
 
 ---
 
@@ -130,7 +139,8 @@ Every log table (shifts, deliveries, fuel dips, bales) has **Edit / Delete** but
 - **Delete a record** — manager and above for shifts and month-end stock; supervisor and above for deliveries, fuel dips and bales.
 - Deletions are **"soft"** — the record is removed from view and totals, and the action is recorded in the audit trail.
 
-📷 *Screenshot: a log table showing the Edit and Delete buttons*
+![Production shift log](images/04-production.png)
+*Figure 4 — Production: per-row Edit / Delete on the shift log (by role)*
 
 ---
 
@@ -141,7 +151,8 @@ The headline of the plant for the selected period: **total trays, average per da
 
 - **Setting targets (manager+):** click **◎ Targets** on the Overview to set goals for avg/day, fuel efficiency, downtime % and reject %.
 
-📷 *Screenshot: the Overview KPI cards and Needs Attention panel*
+![Overview](images/02-overview.png)
+*Figure 5 — Overview KPIs, trend arrows, and Needs Attention*
 
 ### 8.2 Production / Fuel / Downtime / Deliveries
 
@@ -152,6 +163,12 @@ The headline of the plant for the selected period: **total trays, average per da
 | **Downtime** | Lost hours, downtime by cause (from the shift notes), worst stoppages, and daily downtime trend. |
 | **Deliveries** | Produced vs delivered, top customers by volume, and the delivery log. |
 | **Stock & Bales** | Bale receipts and the month-end stock balances. |
+
+![Fuel & Energy](images/05-fuel.png)
+*Figure 8a — Fuel & Energy*
+
+![Downtime](images/06-downtime.png)
+*Figure 8b — Downtime analysis*
 
 ### 8.3 Notifications
 The **bell** in the top bar shows automatic alerts (e.g. a heavy-downtime day). Click it to read and dismiss them.
@@ -174,7 +191,8 @@ The **bell** in the top bar shows automatic alerts (e.g. a heavy-downtime day). 
 
 > **Optional:** if the AI assistant is switched on, reports can also include an AI-written summary and improvement plan, and a "Plant Manager's Commentary" on the Reports page.
 
-📷 *Screenshot: the Reports page with the format buttons*
+![Reports](images/09-reports.png)
+*Figure 9 — Reports: pick a period, preview, then download*
 
 ---
 
@@ -186,6 +204,9 @@ The **bell** in the top bar shows automatic alerts (e.g. a heavy-downtime day). 
 
 > **Best practice:** give each person their own login — never share accounts. It keeps the audit trail meaningful and lets you set the right role per person.
 
+![Team & Access](images/10-users.png)
+*Figure 10 — Team & Access: create users and set roles (admin)*
+
 ---
 
 ## 11. Your account & preferences
@@ -193,6 +214,9 @@ The **bell** in the top bar shows automatic alerts (e.g. a heavy-downtime day). 
 - **My Account** — change your password at any time.
 - **Theme** — use the toggle in the top bar to switch between light and dark.
 - **Sign out** — bottom-left of the sidebar, especially on shared computers.
+
+![My Account](images/11-account.png)
+*Figure 11 — My Account: change password (admins also see Database Backups)*
 
 ---
 
