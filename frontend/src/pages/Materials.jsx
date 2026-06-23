@@ -28,7 +28,7 @@ const STOCK_FIELDS = [
 ].map(f => ({ ...f, type: 'number' }))
 
 export default function Materials() {
-  const { periods, period, setPeriod, start, end, rangeKey } = usePeriod()
+  const { period, setPeriod, start, end, rangeKey } = usePeriod()
   const { can } = useAuth()
   const toast = useToast()
   const [bales, setBales] = useState([])
@@ -49,7 +49,7 @@ export default function Materials() {
   if (err) return (
     <div className="main">
       <PageHead title="Stock & Bales" sub="Raw material receipts & month-end balances"
-        right={<PeriodPicker periods={periods} period={period} setPeriod={setPeriod} />} />
+        right={<PeriodPicker period={period} setPeriod={setPeriod} />} />
       <div className="err">{err}</div>
     </div>
   )
@@ -83,7 +83,7 @@ export default function Materials() {
   return (
     <div className="main">
       <PageHead title="Stock & Bales" sub="Raw material receipts & month-end balances"
-        right={<PeriodPicker periods={periods} period={period} setPeriod={setPeriod} />} />
+        right={<PeriodPicker period={period} setPeriod={setPeriod} />} />
 
       <div className="kpis">
         <Kpi label="Bale Deliveries" value={fmt(bales.length)} note="receipts this period" accent={C.amber} />
