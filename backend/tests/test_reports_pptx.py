@@ -77,8 +77,8 @@ def test_pptx_includes_ai_narrative_when_enabled(client, admin_headers, monkeypa
             {"title": "Speed decline", "detail": "Trending down.", "action": "Check forming molds."},
         ],
     }
-    monkeypatch.setattr("app.services.report_pptx.ai_available", lambda: True)
-    monkeypatch.setattr("app.services.report_pptx.generate_deck_narrative", lambda payload: fake)
+    monkeypatch.setattr("app.services.report_trends.ai_available", lambda: True)
+    monkeypatch.setattr("app.services.report_trends.generate_deck_narrative", lambda payload: fake)
 
     r = client.get("/api/v1/reports/report.pptx", headers=admin_headers,
                    params={"start": "2024-01-01", "end": "2024-02-29", "period": "Monthly"})

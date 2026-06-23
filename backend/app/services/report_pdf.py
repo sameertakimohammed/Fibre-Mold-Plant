@@ -22,6 +22,7 @@ from reportlab.platypus import (
 )
 
 from .report_data import collect_report_data, report_filename
+from .report_trends import collect_trend_data, deck_narrative
 
 AMBER = colors.HexColor("#F5A623")
 INK = colors.HexColor("#1A1205")
@@ -149,6 +150,43 @@ def _data_table(headers, rows, col_widths, st):
     return t
 
 
+def _improvement_plan_flow(narrative, st):
+    """Flowables for the AI improvement plan, or [] when none was produced."""
+    plan = narrative.get("improvement_plan") if narrative else None
+    if not plan:
+        return []
+    flow = [Paragraph("AI Improvement Plan", st["h2"])]
+    overall = narrative.get("overall_summary")
+    if overall:
+        note = ParagraphStyle("note", parent=st["cell"], fontSize=9,
+                              textColor=MUTE, spaceAfter=6, leading=12)
+        flow.append(Paragraph(escape(overall), note))
+    head = [Paragraph(f'<font color="white"><b>{h}</b></font>', st["cell"])
+            for h in ["#", "Issue", "Detail", "Recommended action"]]
+    body = [head]
+    rcell = ParagraphStyle("rc", parent=st["cell"], alignment=TA_CENTER)
+    for i, item in enumerate(plan, 1):
+        body.append([
+            Paragraph(str(i), rcell),
+            Paragraph(f'<b>{escape(str(item.get("title", "")))}</b>', st["cell"]),
+            Paragraph(escape(str(item.get("detail", ""))), st["cell"]),
+            Paragraph(escape(str(item.get("action", ""))), st["cell"]),
+        ])
+    t = Table(body, colWidths=[10 * mm, 42 * mm, 66 * mm, 52 * mm], repeatRows=1)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), DARK),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, ZEBRA]),
+        ("GRID", (0, 0), (-1, -1), 0.4, LINE),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    flow.append(t)
+    return flow
+
+
 def build_report_pdf(
     db: Session,
     start: date | None = None,
@@ -158,6 +196,7 @@ def build_report_pdf(
     data = collect_report_data(db, start, end, period_label)
     m = data.metrics
     st = _styles()
+    narrative = deck_narrative(collect_trend_data(db, start, end))
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -173,6 +212,9 @@ def build_report_pdf(
         Spacer(1, 8),
         _kpi_table(m, st),
     ]
+
+    # AI improvement plan (only present when AI is enabled & returned one).
+    flow.extend(_improvement_plan_flow(narrative, st))
 
     # Shift detail
     flow.append(Paragraph(f"Shift Detail ({m['shift_count']} shifts)", st["h2"]))

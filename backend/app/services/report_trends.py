@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from ..models.production import ProductionShift
 from ..models.operations import Delivery
 from ..models.target import KpiTarget
+from .ai import ai_available, generate_deck_narrative
 
 MONTHS = ["", "January", "February", "March", "April", "May", "June",
          "July", "August", "September", "October", "November", "December"]
@@ -154,3 +155,34 @@ def collect_trend_data(db: Session, start: date | None, end: date | None) -> Tre
         span = "All time"
 
     return TrendData(span=span, months=months, targets=targets)
+
+
+def _ai_payload(trend: TrendData) -> dict:
+    """Compact per-month digest sent to the AI for the deck/report narrative."""
+    months = []
+    for m in trend.months:
+        mm = m.metrics
+        months.append({
+            "key": m.key, "label": m.label,
+            "trays_produced": mm["total_qty"], "avg_trays_per_day": mm["avg_per_day"],
+            "diesel_litres": mm["total_fuel"], "fuel_eff_l_per_1k_trays": mm["fuel_eff"],
+            "downtime_hours": mm["total_downtime_hrs"], "downtime_pct": mm["downtime_pct"],
+            "reject_rate_pct": mm["repulp_rate"], "avg_speed_pcs_per_hr": mm["avg_speed"],
+            "product_mix": m.mix,
+            "downtime_hours_by_cause": {c: round(v / 60, 1) for c, v in m.causes.items()},
+        })
+    return {"period": trend.span, "months": months}
+
+
+def deck_narrative(trend: TrendData) -> dict:
+    """The shared AI narrative for a range — used by the PPTX deck AND the
+    PDF/Excel reports so they tell the same story.
+
+    Returns generate_deck_narrative()'s dict
+    ({overall_summary, months, improvement_plan}) or {} when AI is unavailable
+    or there's no data — callers render the AI parts only if present, so every
+    report still builds without AI.
+    """
+    if not trend.months or not ai_available():
+        return {}
+    return generate_deck_narrative(_ai_payload(trend))

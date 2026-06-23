@@ -29,8 +29,7 @@ from pptx.chart.data import CategoryChartData
 from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
 
 from .report_data import report_filename
-from .report_trends import collect_trend_data, CAUSE_ORDER, TrendData, MonthData
-from .ai import ai_available, generate_deck_narrative
+from .report_trends import collect_trend_data, deck_narrative, CAUSE_ORDER, TrendData, MonthData
 
 AMBER = RGBColor(0xF5, 0xA6, 0x23)
 INK = RGBColor(0x14, 0x19, 0x20)      # near-black slide background
@@ -424,23 +423,6 @@ def _observations_slide(prs, trend: TrendData):
 # --------------------------------------------------------------------------- #
 # Entry point
 # --------------------------------------------------------------------------- #
-def _ai_payload(trend: TrendData) -> dict:
-    """Compact per-month digest sent to the AI for the deck narrative."""
-    months = []
-    for m in trend.months:
-        mm = m.metrics
-        months.append({
-            "key": m.key, "label": m.label,
-            "trays_produced": mm["total_qty"], "avg_trays_per_day": mm["avg_per_day"],
-            "diesel_litres": mm["total_fuel"], "fuel_eff_l_per_1k_trays": mm["fuel_eff"],
-            "downtime_hours": mm["total_downtime_hrs"], "downtime_pct": mm["downtime_pct"],
-            "reject_rate_pct": mm["repulp_rate"], "avg_speed_pcs_per_hr": mm["avg_speed"],
-            "product_mix": m.mix,
-            "downtime_hours_by_cause": {c: round(v / 60, 1) for c, v in m.causes.items()},
-        })
-    return {"period": trend.span, "months": months}
-
-
 def build_report_pptx(
     db: Session,
     start: date | None = None,
@@ -450,11 +432,9 @@ def build_report_pptx(
     trend = collect_trend_data(db, start, end)
 
     # One AI call for the whole deck (per-month one-liners, overall summary, and
-    # the improvement plan). Returns {} when AI is off or the call fails, so the
-    # deck always builds — the AI text is purely additive.
-    narrative = {}
-    if trend.months and ai_available():
-        narrative = generate_deck_narrative(_ai_payload(trend))
+    # the improvement plan), shared with the PDF/Excel reports. Returns {} when
+    # AI is off or the call fails, so the deck always builds — AI text is additive.
+    narrative = deck_narrative(trend)
     month_notes = narrative.get("months", {}) if narrative else {}
 
     prs = Presentation()
