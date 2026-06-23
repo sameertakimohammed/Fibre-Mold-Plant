@@ -30,6 +30,7 @@ from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
 
 from .report_data import report_filename
 from .report_trends import collect_trend_data, CAUSE_ORDER, TrendData, MonthData
+from .ai import ai_available, generate_deck_narrative
 
 AMBER = RGBColor(0xF5, 0xA6, 0x23)
 INK = RGBColor(0x14, 0x19, 0x20)      # near-black slide background
@@ -87,6 +88,15 @@ def _accent_bar(slide, left, top, width=Inches(2.2), color=AMBER):
     bar.fill.solid(); bar.fill.fore_color.rgb = color
     bar.line.fill.background(); bar.shadow.inherit = False
     return bar
+
+
+def _caption(slide, text, top=Inches(6.95), color=MUTE, size=11, prefix="✦ "):
+    """A slim full-width caption band at the bottom of a slide (used for the
+    AI-written one-line summaries)."""
+    if not text:
+        return None
+    _text(slide, Inches(0.85), top, Inches(11.6), Inches(0.5),
+          [(prefix + text, size, False, color)])
 
 
 def _slide_header(prs, title, sub=None):
@@ -210,7 +220,7 @@ def _title_slide(prs, trend: TrendData):
     return s
 
 
-def _month_production_slide(prs, month: MonthData, targets: dict):
+def _month_production_slide(prs, month: MonthData, targets: dict, ai_note=None):
     s = _slide_header(prs, f"{month.label} — Production Performance",
                       "Daily forming machine output")
     m = month.metrics
@@ -218,11 +228,11 @@ def _month_production_slide(prs, month: MonthData, targets: dict):
     cats = [d["day"] for d in month.by_day] or ["—"]
     vals = [round(d["qty"]) for d in month.by_day] or [0]
     _chart(s, XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(0.85), Inches(1.7),
-           Inches(7.6), Inches(5.2), cats, [("Trays", vals, AMBER)],
+           Inches(7.6), Inches(4.9), cats, [("Trays", vals, AMBER)],
            cat_font=8)
 
     # KPI tiles (right column).
-    tx, tw, th, gap = Inches(8.75), Inches(3.7), Inches(0.82), Inches(0.18)
+    tx, tw, th, gap = Inches(8.75), Inches(3.7), Inches(0.74), Inches(0.14)
     top = Inches(1.7)
     tgt = targets.get("avg_per_day")
     avg_label = "Avg trays / day"
@@ -237,11 +247,12 @@ def _month_production_slide(prs, month: MonthData, targets: dict):
         (_fmt(m["avg_per_day"]), avg_label, GREEN),
     ]
     for i, (v, l, acc) in enumerate(tiles):
-        _tile(s, tx, top + i * (th + gap), tw, th, v, l, acc, vsize=20, lsize=9)
+        _tile(s, tx, top + i * (th + gap), tw, th, v, l, acc, vsize=18, lsize=9)
+    _caption(s, ai_note)
     return s
 
 
-def _month_downtime_slide(prs, month: MonthData):
+def _month_downtime_slide(prs, month: MonthData, ai_note=None):
     s = _slide_header(prs, f"{month.label} — Downtime Analysis by Category",
                       f"Total downtime {_fmt(month.metrics['total_downtime_hrs'])} hrs "
                       f"· {_fmt(month.metrics['downtime_pct'])}% of scheduled")
@@ -252,7 +263,7 @@ def _month_downtime_slide(prs, month: MonthData):
         cats = [c for c, _ in ordered]
         hrs = [round(v / 60, 1) for _, v in ordered]
         _chart(s, XL_CHART_TYPE.BAR_CLUSTERED, Inches(0.85), Inches(1.7),
-               Inches(6.7), Inches(5.0), cats, [("Hours lost", hrs, RED)],
+               Inches(6.7), Inches(4.8), cats, [("Hours lost", hrs, RED)],
                cat_font=10)
         rows = [[c, _fmt(round(v / 60, 1)), f"{round(v / total * 100)}%"]
                 for c, v in ordered]
@@ -262,26 +273,28 @@ def _month_downtime_slide(prs, month: MonthData):
     else:
         _text(s, Inches(0.9), Inches(3.2), Inches(11), Inches(1),
               [("No downtime recorded this month.", 16, False, MUTE)])
+    _caption(s, ai_note)
     return s
 
 
-def _month_fuel_slide(prs, month: MonthData):
+def _month_fuel_slide(prs, month: MonthData, ai_note=None):
     m = month.metrics
     s = _slide_header(prs, f"{month.label} — Diesel Fuel Consumption",
                       f"{_fmt(m['total_fuel'])} L burned · {_fmt(m['fuel_eff'])} L per 1,000 trays")
     cats = [d["day"] for d in month.by_day] or ["—"]
     vals = [round(d["fuel"]) for d in month.by_day] or [0]
     _chart(s, XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(0.85), Inches(1.7),
-           Inches(8.2), Inches(5.2), cats, [("Diesel (L)", vals, BLUE)],
+           Inches(8.2), Inches(4.9), cats, [("Diesel (L)", vals, BLUE)],
            cat_font=8)
-    tx, tw, th = Inches(9.35), Inches(3.1), Inches(1.3)
-    _tile(s, tx, Inches(1.9), tw, th, _fmt(m["total_fuel"]), "Total diesel (L)", BLUE)
-    _tile(s, tx, Inches(3.4), tw, th, _fmt(m["fuel_eff"]), "L / 1,000 trays", AMBER)
-    _tile(s, tx, Inches(4.9), tw, th, _fmt(m["avg_speed"]), "Avg speed (pcs/hr)", GREEN)
+    tx, tw, th = Inches(9.35), Inches(3.1), Inches(1.2)
+    _tile(s, tx, Inches(1.8), tw, th, _fmt(m["total_fuel"]), "Total diesel (L)", BLUE)
+    _tile(s, tx, Inches(3.2), tw, th, _fmt(m["fuel_eff"]), "L / 1,000 trays", AMBER)
+    _tile(s, tx, Inches(4.6), tw, th, _fmt(m["avg_speed"]), "Avg speed (pcs/hr)", GREEN)
+    _caption(s, ai_note)
     return s
 
 
-def _trend_comparison_slide(prs, trend: TrendData):
+def _trend_comparison_slide(prs, trend: TrendData, overall_summary=None):
     s = _slide_header(prs, f"Monthly Trend Comparison",
                       f"{trend.span} · how the plant is tracking month over month")
     labels = [m.label.split(" ")[0][:3] + " " + m.label.split(" ")[1][-2:] for m in trend.months]
@@ -302,6 +315,30 @@ def _trend_comparison_slide(prs, trend: TrendData):
            col_widths=[Inches(1.6), Inches(0.95), Inches(0.75), Inches(0.6),
                        Inches(0.5), Inches(0.4)],
            body_size=10, head_size=10)
+    _caption(s, overall_summary)
+    return s
+
+
+def _improvement_plan_slide(prs, plan: list):
+    """AI-written 'Production Improvement Plan' — numbered issues + actions."""
+    s = _slide_header(prs, "Production Improvement Plan",
+                      "AI-generated key issues & recommended actions")
+    top = Inches(1.65)
+    for i, item in enumerate(plan[:5]):
+        title = str(item.get("title", "")).strip()
+        detail = str(item.get("detail", "")).strip()
+        action = str(item.get("action", "")).strip()
+        if not title:
+            continue
+        _text(s, Inches(0.85), top, Inches(0.8), Inches(0.8),
+              [(f"{i + 1:02d}", 22, True, AMBER)])
+        runs = [(title, 15, True, WHITE)]
+        if detail:
+            runs.append((detail, 11, False, MUTE))
+        if action:
+            runs.append((f"Action: {action}", 11, False, AMBER))
+        _text(s, Inches(1.7), top, Inches(10.8), Inches(1.0), runs)
+        top += Inches(1.05)
     return s
 
 
@@ -387,6 +424,23 @@ def _observations_slide(prs, trend: TrendData):
 # --------------------------------------------------------------------------- #
 # Entry point
 # --------------------------------------------------------------------------- #
+def _ai_payload(trend: TrendData) -> dict:
+    """Compact per-month digest sent to the AI for the deck narrative."""
+    months = []
+    for m in trend.months:
+        mm = m.metrics
+        months.append({
+            "key": m.key, "label": m.label,
+            "trays_produced": mm["total_qty"], "avg_trays_per_day": mm["avg_per_day"],
+            "diesel_litres": mm["total_fuel"], "fuel_eff_l_per_1k_trays": mm["fuel_eff"],
+            "downtime_hours": mm["total_downtime_hrs"], "downtime_pct": mm["downtime_pct"],
+            "reject_rate_pct": mm["repulp_rate"], "avg_speed_pcs_per_hr": mm["avg_speed"],
+            "product_mix": m.mix,
+            "downtime_hours_by_cause": {c: round(v / 60, 1) for c, v in m.causes.items()},
+        })
+    return {"period": trend.span, "months": months}
+
+
 def build_report_pptx(
     db: Session,
     start: date | None = None,
@@ -394,6 +448,14 @@ def build_report_pptx(
     period_label: str = "Monthly",
 ) -> tuple[bytes, str]:
     trend = collect_trend_data(db, start, end)
+
+    # One AI call for the whole deck (per-month one-liners, overall summary, and
+    # the improvement plan). Returns {} when AI is off or the call fails, so the
+    # deck always builds — the AI text is purely additive.
+    narrative = {}
+    if trend.months and ai_available():
+        narrative = generate_deck_narrative(_ai_payload(trend))
+    month_notes = narrative.get("months", {}) if narrative else {}
 
     prs = Presentation()
     prs.slide_width = SW
@@ -405,16 +467,21 @@ def build_report_pptx(
         _slide_header(prs, "No production data in this period",
                       "Pick a date range that contains shift entries.")
     else:
-        # Per-month detail slides.
+        # Per-month detail slides (with AI one-line summaries when available).
         for month in trend.months:
-            _month_production_slide(prs, month, trend.targets)
-            _month_downtime_slide(prs, month)
-            _month_fuel_slide(prs, month)
+            notes = month_notes.get(month.key, {}) if isinstance(month_notes, dict) else {}
+            _month_production_slide(prs, month, trend.targets, notes.get("production"))
+            _month_downtime_slide(prs, month, notes.get("downtime"))
+            _month_fuel_slide(prs, month, notes.get("fuel"))
         # Cross-month summary slides (only meaningful for 2+ months).
         if trend.multi:
-            _trend_comparison_slide(prs, trend)
+            _trend_comparison_slide(prs, trend, narrative.get("overall_summary"))
             _downtime_comparison_slide(prs, trend)
             _observations_slide(prs, trend)
+        # AI improvement-plan slide (only when AI produced one).
+        plan = narrative.get("improvement_plan") if narrative else None
+        if plan:
+            _improvement_plan_slide(prs, plan)
 
     buf = io.BytesIO()
     prs.save(buf)

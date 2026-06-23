@@ -50,6 +50,49 @@ def test_pptx_multi_month_has_trend_slides(client, admin_headers):
     assert "Observations & Trends" in joined
 
 
+def _all_text(content: bytes) -> str:
+    prs = Presentation(io.BytesIO(content))
+    out = []
+    for s in prs.slides:
+        for sh in s.shapes:
+            if sh.has_text_frame:
+                out.append(sh.text_frame.text)
+    return " | ".join(out)
+
+
+def test_pptx_includes_ai_narrative_when_enabled(client, admin_headers, monkeypatch):
+    """With AI mocked on, the deck gains per-slide summaries + an AI improvement
+    plan slide. (Real API isn't called — we patch the report module's hooks.)"""
+    _seed_two_months(client, admin_headers)
+    fake = {
+        "overall_summary": "Output climbed across the period.",
+        "months": {
+            "2024-01": {"production": "AI-JAN-PROD note.", "downtime": "AI-JAN-DOWN note.",
+                        "fuel": "AI-JAN-FUEL note."},
+            "2024-02": {"production": "AI-FEB-PROD note.", "downtime": "AI-FEB-DOWN note.",
+                        "fuel": "AI-FEB-FUEL note."},
+        },
+        "improvement_plan": [
+            {"title": "Mold washing downtime", "detail": "Dominant cause.", "action": "Trial new mesh."},
+            {"title": "Speed decline", "detail": "Trending down.", "action": "Check forming molds."},
+        ],
+    }
+    monkeypatch.setattr("app.services.report_pptx.ai_available", lambda: True)
+    monkeypatch.setattr("app.services.report_pptx.generate_deck_narrative", lambda payload: fake)
+
+    r = client.get("/api/v1/reports/report.pptx", headers=admin_headers,
+                   params={"start": "2024-01-01", "end": "2024-02-29", "period": "Monthly"})
+    assert r.status_code == 200, r.text
+    titles = _slide_titles(r.content)
+    # title + 6 detail + 3 summary + 1 AI improvement plan = 11
+    assert len(titles) == 11, titles
+    assert "Production Improvement Plan" in titles
+    text = _all_text(r.content)
+    assert "AI-JAN-PROD note." in text       # per-slide AI summary rendered
+    assert "Mold washing downtime" in text   # AI improvement plan rendered
+    assert "Trial new mesh." in text          # action line rendered
+
+
 def test_pptx_single_month_omits_trend_slides(client, admin_headers):
     _seed_two_months(client, admin_headers)
     r = client.get("/api/v1/reports/report.pptx", headers=admin_headers,

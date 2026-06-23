@@ -212,6 +212,68 @@ def generate_commentary(data: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
+# PowerPoint deck narrative (one structured call for the whole deck)
+# ---------------------------------------------------------------------------
+def _extract_json(raw: str) -> dict:
+    """Parse a JSON object from the model reply, tolerating ```json fences."""
+    s = raw.strip()
+    if s.startswith("```"):
+        s = s.split("```", 2)[1] if s.count("```") >= 2 else s.strip("`")
+        if s.lstrip().lower().startswith("json"):
+            s = s.lstrip()[4:]
+    start, end = s.find("{"), s.rfind("}")
+    if start == -1 or end == -1:
+        return {}
+    return json.loads(s[start:end + 1])
+
+
+def generate_deck_narrative(payload: dict) -> dict:
+    """One Claude call for the whole multi-month deck.
+
+    `payload` is a compact per-month digest built by the PPTX builder. Returns:
+      {
+        "overall_summary": str,
+        "months": {"YYYY-MM": {"production": str, "downtime": str, "fuel": str}},
+        "improvement_plan": [{"title": str, "detail": str, "action": str}, ...]
+      }
+    or {} when AI is unavailable or the call/parse fails — so the deck still
+    builds without any AI text.
+    """
+    if not ai_available():
+        return {}
+    prompt = (
+        "You are writing the narrative for a management PowerPoint deck covering "
+        "several months of plant data. Use ONLY the figures in this JSON:\n\n"
+        f"```json\n{json.dumps(payload, indent=1, default=str)}\n```\n\n"
+        "Return STRICT JSON only — no markdown, no prose, no code fences — with "
+        "exactly this shape:\n"
+        '{\n'
+        '  "overall_summary": "<= 50 words on the key trend across the period",\n'
+        '  "months": { "<YYYY-MM>": { "production": "<= 18 words", '
+        '"downtime": "<= 18 words", "fuel": "<= 18 words" } },\n'
+        '  "improvement_plan": [ { "title": "short issue title", '
+        '"detail": "<= 30 words, cite a figure", "action": "<= 20 words, concrete next step" } ]\n'
+        "}\n\n"
+        "Rules: use the SAME month keys as the input. One concise sentence per "
+        "month field, each citing a figure. Provide 3-5 improvement_plan items "
+        "grounded in the data — e.g. dominant downtime cause, fuel-efficiency or "
+        "machine-speed trend, output swings, reject rate. Never invent numbers."
+    )
+    try:
+        raw = _complete([{"role": "user", "content": prompt}], max_tokens=3500)
+        out = _extract_json(raw)
+        if not isinstance(out, dict):
+            return {}
+        out.setdefault("overall_summary", "")
+        out.setdefault("months", {})
+        out.setdefault("improvement_plan", [])
+        return out
+    except Exception:
+        logger.exception("[ai] deck narrative generation failed; omitting AI text")
+        return {}
+
+
+# ---------------------------------------------------------------------------
 # Interactive Q&A
 # ---------------------------------------------------------------------------
 def answer_question(question: str, db: Session) -> str:
