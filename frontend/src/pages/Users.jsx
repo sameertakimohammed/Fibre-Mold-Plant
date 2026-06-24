@@ -41,6 +41,16 @@ export default function Users() {
 
   const changeRole = async (u, role) => { try { await api.updateUser(u.id, { role }); toast.ok(`${u.username} is now ${role}.`); load() } catch (e) { toast.err(e.message) } }
   const toggleActive = async (u) => { try { await api.updateUser(u.id, { is_active: !u.is_active }); load() } catch (e) { toast.err(e.message) } }
+  // Local password reset: admin sets a new temporary password. The backend
+  // forces must_change_password and revokes the user's existing tokens, so they
+  // pick a new one at next login. AD accounts authenticate against Active
+  // Directory, so a local reset wouldn't change their login — hide it for them.
+  const resetPassword = async (u) => {
+    const pw = prompt(`Set a new temporary password for ${u.username}.\nThey'll be required to change it at next login. Minimum 8 characters.`)
+    if (pw === null) return // cancelled
+    if (pw.length < 8) { toast.err('Password must be at least 8 characters.'); return }
+    try { await api.updateUser(u.id, { password: pw }); toast.ok(`Password reset for ${u.username}. They'll set a new one at next login.`); load() } catch (e) { toast.err(e.message) }
+  }
   const remove = async (u) => {
     if (!confirm(`Delete user ${u.username}? This cannot be undone.`)) return
     try { await api.deleteUser(u.id); toast.ok(`Deleted ${u.username}.`); load() } catch (e) { toast.err(e.message) }
@@ -100,6 +110,9 @@ export default function Users() {
                     )}
                   </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {u.auth_source !== 'ad' && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => resetPassword(u)} style={{ marginRight: 6 }}>Reset password</button>
+                    )}
                     <button className="btn btn-ghost btn-sm" onClick={() => toggleActive(u)} style={{ marginRight: 6 }}>{u.is_active ? 'Disable' : 'Enable'}</button>
                     <button className="btn btn-danger btn-sm" onClick={() => remove(u)}>Delete</button>
                   </td>

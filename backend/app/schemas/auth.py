@@ -40,7 +40,9 @@ class UserUpdate(BaseModel):
     full_name: str | None = None
     role: Role | None = None
     is_active: bool | None = None
-    password: str | None = None
+    # Admin-initiated password reset. None means "leave unchanged"; when a value
+    # is supplied it must meet the same 8-char floor as create / self-change.
+    password: Annotated[str, Field(min_length=MIN_PASSWORD_LEN)] | None = None
 
 
 class PasswordChange(BaseModel):

@@ -47,6 +47,42 @@ def test_seven_char_password_rejected_422(client, admin_headers):
     assert resp.status_code == 422, resp.text
 
 
+def test_admin_reset_password_sets_must_change_and_rotates_login(client, admin_headers):
+    # Admin resets a user's password via PATCH: must_change_password flips back
+    # on, the old password stops working, and the new one logs in.
+    create = client.post("/api/v1/users", headers=admin_headers,
+                       json={"username": "resetme", "full_name": "Reset Me",
+                             "password": "original-password-123", "role": "operator"})
+    assert create.status_code == 201, create.text
+    uid = create.json()["id"]
+
+    new_pw = "fresh-temp-password-456"
+    patch = client.patch(f"/api/v1/users/{uid}", headers=admin_headers,
+                         json={"password": new_pw})
+    assert patch.status_code == 200, patch.text
+    assert patch.json()["must_change_password"] is True
+
+    old = client.post("/api/v1/auth/login",
+                      data={"username": "resetme", "password": "original-password-123"})
+    assert old.status_code == 401, old.text
+    fresh = client.post("/api/v1/auth/login",
+                        data={"username": "resetme", "password": new_pw})
+    assert fresh.status_code == 200, fresh.text
+    assert fresh.json()["must_change_password"] is True
+
+
+def test_admin_reset_short_password_rejected_422(client, admin_headers):
+    # The 8-char floor now applies to admin resets (UserUpdate.password), too.
+    create = client.post("/api/v1/users", headers=admin_headers,
+                       json={"username": "resetshort", "full_name": "Reset Short",
+                             "password": "original-password-123", "role": "operator"})
+    assert create.status_code == 201, create.text
+    uid = create.json()["id"]
+    patch = client.patch(f"/api/v1/users/{uid}", headers=admin_headers,
+                         json={"password": "1234567"})  # 7 chars
+    assert patch.status_code == 422, patch.text
+
+
 def test_blank_username_rejected_422(client, admin_headers):
     # A blank username ("   ") makes the UserCreate field_validator raise a bare
     # ValueError ("username must not be blank"). Pydantic surfaces that in
