@@ -2,6 +2,13 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
+import { reloadOnceForChunk } from './lib/chunkReload'
+
+// A lazily-imported page chunk can 404 right after a new version is deployed —
+// this tab still references the previous build's hashed filenames. Vite fires
+// `vite:preloadError` in that case; reload once to pick up the fresh build
+// instead of dead-ending on the error screen (guarded against reload loops).
+window.addEventListener('vite:preloadError', () => { reloadOnceForChunk() })
 
 // Apply the saved theme before first paint (avoids a flash of the wrong theme).
 // Default to dark; honour the OS preference only when the user hasn't chosen.

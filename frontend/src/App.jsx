@@ -19,6 +19,7 @@ const Downtime = lazy(() => import('./pages/Downtime'))
 const Deliveries = lazy(() => import('./pages/Deliveries'))
 const Materials = lazy(() => import('./pages/Materials'))
 const Reports = lazy(() => import('./pages/Reports'))
+const Targets = lazy(() => import('./pages/Targets'))
 const LogShift = lazy(() => import('./pages/LogShift'))
 const Account = lazy(() => import('./pages/Account'))
 const Users = lazy(() => import('./pages/Users'))
@@ -38,6 +39,7 @@ const NAV = [
   ] },
   { sec: 'Reports', items: [
     { to: '/reports', label: 'Reports', ic: '🖨' },
+    { to: '/targets', label: 'Targets', ic: '◎' },
   ] },
 ]
 
@@ -141,6 +143,7 @@ export default function App() {
             <Route path="/deliveries" element={<Protected><Deliveries /></Protected>} />
             <Route path="/materials" element={<Protected><Materials /></Protected>} />
             <Route path="/reports" element={<Protected><Reports /></Protected>} />
+            <Route path="/targets" element={<Protected><Targets /></Protected>} />
             <Route path="/log" element={<Protected><LogShift /></Protected>} />
             <Route path="/account" element={<Protected><Account /></Protected>} />
             <Route path="/users" element={<Protected><AdminOnly><Users /></AdminOnly></Protected>} />

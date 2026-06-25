@@ -1,4 +1,5 @@
 import { Component } from 'react'
+import { isChunkLoadError, reloadOnceForChunk, hasGivenUpOnChunk } from '../lib/chunkReload'
 
 // Catches render-time errors anywhere below it and shows a friendly card
 // instead of white-screening the whole dashboard.
@@ -13,12 +14,30 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
+    // A stale page chunk after a deploy heals itself with a reload — do it once
+    // (guarded against loops) rather than stranding the user on the error card.
+    if (isChunkLoadError(error) && reloadOnceForChunk()) return
     // Keep a single, quiet console line for diagnosis — no spam.
     console.error('Dashboard render error:', error, info?.componentStack)
   }
 
   render() {
     if (this.state.error) {
+      // Stale-chunk error with auto-reload attempts still left — componentDidCatch
+      // is about to reload, so show a calm "updating" card. Once those attempts are
+      // exhausted (hasGivenUpOnChunk), fall through to the normal error card with a
+      // manual Reload button instead of looping.
+      if (isChunkLoadError(this.state.error) && !hasGivenUpOnChunk()) {
+        return (
+          <div className="main">
+            <div className="card" style={{ maxWidth: 520, margin: '8vh auto', textAlign: 'center' }}>
+              <div style={{ fontSize: 34, opacity: 0.5, marginBottom: 12 }}>↻</div>
+              <h3 style={{ justifyContent: 'center', fontSize: 16, marginBottom: 8 }}>Updating to the latest version…</h3>
+              <p style={{ color: 'var(--mut)', fontSize: 13, margin: 0 }}>A new version was just deployed. Refreshing automatically.</p>
+            </div>
+          </div>
+        )
+      }
       return (
         <div className="main">
           <div className="card" style={{ maxWidth: 520, margin: '8vh auto', textAlign: 'center' }}>

@@ -109,6 +109,32 @@ def test_summary_daily_window_uses_daily_target(client, role_users, admin_header
     assert body["targets"].get("prod_30") == 31000
 
 
+def test_summary_delta_includes_repulp_rate_pp(client, admin_headers):
+    """deltas carries reject-rate change in percentage points (rate, not count)."""
+    def log(d, qty, repulped):
+        r = client.post("/api/v1/shifts", headers=admin_headers,
+                        json={"work_date": d, "shift": "Day", "qty": qty, "repulped": repulped})
+        assert r.status_code in (201, 409), r.text
+    # Previous 2-day window @ 2% reject, current 2-day window @ 4% reject.
+    log("2023-03-08", 1000, 20); log("2023-03-09", 1000, 20)
+    log("2023-03-10", 1000, 40); log("2023-03-11", 1000, 40)
+    r = client.get("/api/v1/analytics/summary", headers=admin_headers,
+                   params={"start": "2023-03-10", "end": "2023-03-11"})
+    assert r.status_code == 200, r.text
+    deltas = r.json()["deltas"]
+    assert deltas is not None and "repulp_rate" in deltas
+    assert round(deltas["repulp_rate"], 1) == 2.0   # 4% - 2% = +2 pp
+
+
+def test_summary_one_sided_window_has_no_cadence(client, admin_headers):
+    """A window with only start (open-ended) has no cadence: target_period None."""
+    r = client.get("/api/v1/analytics/summary?start=2026-05-10", headers=admin_headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["target_period"] is None
+    assert "prod_30" not in body["targets"]            # volume omitted, no cadence
+
+
 def test_summary_custom_range_drops_volume_keeps_rate(client, role_users, admin_headers):
     """A 10-day span has no cadence: volume targets drop, rate targets fall back."""
     r = client.get("/api/v1/analytics/summary?start=2026-05-05&end=2026-05-14",

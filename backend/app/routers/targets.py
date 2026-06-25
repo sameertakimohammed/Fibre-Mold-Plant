@@ -74,8 +74,10 @@ def infer_period(start: date | None, end: date | None) -> str | None:
     no natural cadence and returns None — rate targets still compare, volume
     targets are omitted (a 10-day total has no daily/weekly/monthly target).
     """
-    if not (start and end):
+    if not start and not end:
         return "monthly"  # no window given == the dashboard's whole-month default
+    if not (start and end):
+        return None        # one-sided window (open-ended range) has no cadence
     span = (end - start).days + 1
     if span == 1:
         return "daily"

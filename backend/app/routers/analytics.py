@@ -223,6 +223,9 @@ def summary(
                 "fuel_eff": _pct(agg["fuel_eff"], p["fuel_eff"]),
                 "downtime_pct": (agg["downtime_pct"] - p["downtime_pct"]),  # percentage points
                 "total_repulped": _pct(agg["total_repulped"], p["total_repulped"]),
+                # Reject *rate* change in percentage points — matches the card's
+                # rate-based target/note (output-independent, unlike the count %).
+                "repulp_rate": (agg["repulp_rate"] - p["repulp_rate"]),
                 "prev_label": f"{prev_start.isoformat()} → {prev_end.isoformat()}",
             }
 
