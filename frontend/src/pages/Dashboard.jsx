@@ -1,103 +1,25 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Bar, Doughnut } from 'react-chartjs-2'
 import { api } from '../api/client'
 import { C, PROD_COLORS, gridX, gridY, fmt, fmt1, dlabel } from '../api/charts'
-import { Kpi, Card, PageHead, PageSkeleton, Empty, Modal } from '../components/ui'
+import { Kpi, Card, PageHead, PageSkeleton, Empty } from '../components/ui'
 import { usePeriod } from '../components/Period'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { TARGET_METRICS, PERIODS, cap, buildTarget } from '../lib/targets'
+import { buildTarget } from '../lib/targets'
 
 const baseOpts = { responsive: true, maintainAspectRatio: false }
 const INS_IC = { bad: '✕', warn: '⚠', good: '✓', info: 'ℹ' }
 
-// Manager+ editor: a metric × cadence grid of targets.
-function TargetsModal({ onClose, onSaved }) {
-  const toast = useToast()
-  const [vals, setVals] = useState(null)   // { metric: { period: 'string' } }
-  const [orig, setOrig] = useState(null)
-  const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    api.listTargets().then(rows => {
-      const o = {}
-      TARGET_METRICS.forEach(m => { o[m.key] = {}; PERIODS.forEach(p => { o[m.key][p] = '' }) })
-      rows.forEach(r => { if (o[r.metric] && PERIODS.includes(r.period)) o[r.metric][r.period] = String(r.value) })
-      setVals(o); setOrig(JSON.parse(JSON.stringify(o)))
-    }).catch(e => toast.err(e.message))
-  }, [])
-
-  const set = (m, p, v) => setVals(s => ({ ...s, [m]: { ...s[m], [p]: v } }))
-
-  const save = async () => {
-    setBusy(true)
-    try {
-      for (const m of TARGET_METRICS) {
-        for (const p of PERIODS) {
-          const raw = vals[m.key][p]
-          if (raw === orig[m.key][p]) continue           // unchanged cell
-          if (raw === '' || raw == null) { await api.deleteTarget(p, m.key); continue }
-          const num = parseFloat(raw)
-          if (!isFinite(num) || num < 0) continue
-          await api.setTarget(p, m.key, num)
-        }
-      }
-      toast.ok('Targets saved.')
-      onSaved()
-    } catch (e) { toast.err(e.message) } finally { setBusy(false) }
-  }
-
-  return (
-    <Modal title="KPI Targets" sub="Daily, weekly & monthly goals — shown against actuals on the cards" onClose={onClose}
-      footer={<>
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={save} disabled={busy || !vals}>{busy ? 'Saving…' : 'Save Targets'}</button>
-      </>}>
-      {!vals ? <div className="hint">Loading…</div> : (
-        <div className="tgt-wrap">
-          <table className="tgt-grid">
-            <thead>
-              <tr><th>Metric</th>{PERIODS.map(p => <th key={p}>{cap(p)}</th>)}</tr>
-            </thead>
-            <tbody>
-              {TARGET_METRICS.map(m => (
-                <tr key={m.key}>
-                  <td className="tgt-metric">
-                    {m.label}
-                    <span className="hint"> {m.unit.trim() || (m.kind === 'volume' ? 'pcs' : '')}{m.lower ? ' · lower better' : ''}</span>
-                  </td>
-                  {PERIODS.map(p => (
-                    <td key={p}>
-                      <input type="number" value={vals[m.key][p]} placeholder="—"
-                        onChange={e => set(m.key, p, e.target.value)} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <div className="hint" style={{ marginTop: 10 }}>
-        Blank removes a target. Volume targets (trays, litres) are per-period totals; rates (L/1k, %) are the same goal each cadence. The dashboard compares each view against the matching cadence.
-      </div>
-    </Modal>
-  )
-}
-
 export default function Dashboard() {
   const { start, end, rangeKey, control } = usePeriod()
   const { can } = useAuth()
+  const navigate = useNavigate()
   const toast = useToast()
   const [data, setData] = useState(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
-  const [showTargets, setShowTargets] = useState(false)
-
-  const reload = () => {
-    if (!rangeKey || (!start && !end)) return
-    api.summary(start, end).then(setData).catch(e => setErr(e.message))
-  }
 
   useEffect(() => {
     if (!rangeKey || (!start && !end)) return
@@ -119,7 +41,7 @@ export default function Dashboard() {
     <>
       {control}
       {can('manager') && (
-        <button className="btn btn-ghost btn-sm" onClick={() => setShowTargets(true)} disabled={!data}>
+        <button className="btn btn-ghost btn-sm" onClick={() => navigate('/targets')}>
           ◎ Targets
         </button>
       )}
@@ -235,12 +157,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {showTargets && (
-        <TargetsModal
-          onClose={() => setShowTargets(false)}
-          onSaved={() => { setShowTargets(false); reload() }}
-        />
-      )}
     </div>
   )
 }
