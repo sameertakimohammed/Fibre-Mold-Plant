@@ -19,7 +19,8 @@ const dayRange = (d) => ({ start: d, end: d })
 const weekRange = (d) => {
   const [y, m, day] = d.split('-').map(Number)
   const dow = (new Date(y, m - 1, day).getDay() + 6) % 7 // 0 = Monday
-  return { start: isoLocal(new Date(y, m - 1, day - dow)), end: isoLocal(new Date(y, m - 1, day - dow + 6)) }
+  // Monday–Friday (5 normal days); Saturday is reported on its own via Daily.
+  return { start: isoLocal(new Date(y, m - 1, day - dow)), end: isoLocal(new Date(y, m - 1, day - dow + 4)) }
 }
 
 const CADENCES = [
@@ -141,7 +142,7 @@ export default function Reports() {
             {cadence === 'weekly' && (
               <>
                 <input className="range-in" type="date" value={weekRef} onChange={e => setWeekRef(e.target.value)} />
-                <span className="rep-hint">week of the chosen day (Mon–Sun)</span>
+                <span className="rep-hint">work week of the chosen day (Mon–Fri) · pick a Saturday under Daily for its target</span>
               </>
             )}
             {cadence === 'monthly' && (

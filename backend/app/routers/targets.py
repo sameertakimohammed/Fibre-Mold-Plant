@@ -43,36 +43,39 @@ METRICS: dict[str, tuple[bool, str]] = {
     "repulp_rate":  (True,  "rate"),    # % of output re-pulped — lower better
 }
 
-# Supported cadences. Order matters for the rate fall-back below (prefer the
-# coarsest set value first — monthly is the plant's review basis).
-PERIODS: tuple[str, ...] = ("daily", "weekly", "monthly")
+# Supported cadences. Saturday is a reduced run (2 shifts) so it carries its own
+# figures separate from a normal weekday. Order matters for the rate fall-back
+# below (prefer the coarsest set value first — monthly is the review basis).
+PERIODS: tuple[str, ...] = ("daily", "weekly", "saturday", "monthly")
 
 # Starting targets from the supervisor's "FMP — Production & Diesel Targets"
 # workbook (seeded once into an empty table by services.seed; a manager can edit
 # any cell afterwards). Bases:
-#   * daily   — the KPI document's normal-day figures (single-product max rate).
-#   * monthly — the workbook's mix-weighted plan (70/30 trays/cartons, 30 days,
-#               4 Saturdays): 30's 619,150 · 12's 292,800 · diesel 21,070 L.
-#   * weekly  — the monthly plan pro-rated to 7 days (× 7/30), since the workbook
-#               gives no weekly basis. Rates (fuel_eff/downtime/reject) are the
-#               same goal at every cadence. fuel_eff ≈ 21,070 L ÷ 911,950 trays.
+#   * daily    — the KPI document's normal-weekday figures (21 forming hours).
+#   * weekly   — Monday–Friday, i.e. 5 normal days (5 × daily).
+#   * saturday — the workbook's reduced Saturday run (2 shifts, ~14 h):
+#                30's 23,200 · 12's 25,600 · diesel 490 L.
+#   * monthly  — the workbook's mix-weighted plan (70/30 trays/cartons, 30 days,
+#                4 Saturdays): 30's 619,150 · 12's 292,800 · diesel 21,070 L.
+# Rates (fuel_eff/downtime/reject) are the same goal at every cadence.
 DEFAULT_TARGETS: dict[str, dict[str, float]] = {
-    "prod_30":      {"daily": 30450, "weekly": 144468, "monthly": 619150},
-    "prod_12":      {"daily": 33600, "weekly": 68320,  "monthly": 292800},
-    "diesel":       {"daily": 735,   "weekly": 4916,   "monthly": 21070},
-    "fuel_eff":     {"daily": 23.1,  "weekly": 23.1,   "monthly": 23.1},
-    "downtime_pct": {"daily": 12.5,  "weekly": 12.5,   "monthly": 12.5},
-    "repulp_rate":  {"daily": 2.0,   "weekly": 2.0,    "monthly": 2.0},
+    "prod_30":      {"daily": 30450, "weekly": 152250, "saturday": 23200, "monthly": 619150},
+    "prod_12":      {"daily": 33600, "weekly": 168000, "saturday": 25600, "monthly": 292800},
+    "diesel":       {"daily": 735,   "weekly": 3675,   "saturday": 490,   "monthly": 21070},
+    "fuel_eff":     {"daily": 23.1,  "weekly": 23.1,   "saturday": 23.1,  "monthly": 23.1},
+    "downtime_pct": {"daily": 12.5,  "weekly": 12.5,   "saturday": 12.5,  "monthly": 12.5},
+    "repulp_rate":  {"daily": 2.0,   "weekly": 2.0,    "saturday": 2.0,   "monthly": 2.0},
 }
 
 
 def infer_period(start: date | None, end: date | None) -> str | None:
     """Map a date window to the cadence whose targets apply to it.
 
-    A 1-day window is daily, a 7-day window weekly, and a full calendar month
-    monthly (the dashboard's default view). Any other span (a custom range) has
-    no natural cadence and returns None — rate targets still compare, volume
-    targets are omitted (a 10-day total has no daily/weekly/monthly target).
+    A single weekday is daily and a single Saturday is its own reduced cadence; a
+    Monday–Friday span (5 days) is weekly; a full calendar month is monthly (the
+    dashboard's default view). Any other span (a custom range) has no natural
+    cadence and returns None — rate targets still compare, volume targets are
+    omitted (a 10-day total has no daily/weekly/saturday/monthly target).
     """
     if not start and not end:
         return "monthly"  # no window given == the dashboard's whole-month default
@@ -80,9 +83,9 @@ def infer_period(start: date | None, end: date | None) -> str | None:
         return None        # one-sided window (open-ended range) has no cadence
     span = (end - start).days + 1
     if span == 1:
-        return "daily"
-    if span == 7:
-        return "weekly"
+        return "saturday" if start.weekday() == 5 else "daily"
+    if span == 5 and start.weekday() == 0 and end.weekday() == 4:
+        return "weekly"   # Monday–Friday
     if (start.day == 1 and start.year == end.year and start.month == end.month
             and end.day == calendar.monthrange(end.year, end.month)[1]):
         return "monthly"
