@@ -16,6 +16,18 @@ export const TARGET_METRICS = [
 
 export const PERIODS = ['daily', 'weekly', 'monthly']
 
+// Which analytics-summary `kpis` field holds the actual for each target metric
+// (diesel's actual is the total fuel burned in litres).
+const ACTUAL_FIELD = {
+  prod_30: 'prod_30', prod_12: 'prod_12', diesel: 'total_fuel',
+  fuel_eff: 'fuel_eff', downtime_pct: 'downtime_pct', repulp_rate: 'repulp_rate',
+}
+
+export function actualForMetric(metricKey, kpis) {
+  const f = ACTUAL_FIELD[metricKey]
+  return kpis && f ? kpis[f] : undefined
+}
+
 export const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s)
 
 // Build the { text, pct, met } object the Kpi target bar renders, or null.

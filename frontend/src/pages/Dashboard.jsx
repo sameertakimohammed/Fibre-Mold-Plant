@@ -5,7 +5,6 @@ import { api } from '../api/client'
 import { C, PROD_COLORS, gridX, gridY, fmt, fmt1, dlabel } from '../api/charts'
 import { Kpi, Card, PageHead, PageSkeleton, Empty } from '../components/ui'
 import { usePeriod } from '../components/Period'
-import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { buildTarget } from '../lib/targets'
 
@@ -14,7 +13,6 @@ const INS_IC = { bad: '✕', warn: '⚠', good: '✓', info: 'ℹ' }
 
 export default function Dashboard() {
   const { start, end, rangeKey, control } = usePeriod()
-  const { can } = useAuth()
   const navigate = useNavigate()
   const toast = useToast()
   const [data, setData] = useState(null)
@@ -40,11 +38,11 @@ export default function Dashboard() {
   const exportBtn = (
     <>
       {control}
-      {can('manager') && (
-        <button className="btn btn-ghost btn-sm" onClick={() => navigate('/targets')}>
-          ◎ Targets
-        </button>
-      )}
+      {/* Open to everyone — the page is view-for-all, with editing gated to
+          manager+ there (and on the backend). */}
+      <button className="btn btn-ghost btn-sm" onClick={() => navigate('/targets')}>
+        ◎ Targets
+      </button>
       <button className="btn btn-ghost btn-sm" onClick={exportReport} disabled={busy || !data}>
         {busy ? 'Preparing…' : '⤓ Export'}
       </button>
@@ -57,7 +55,7 @@ export default function Dashboard() {
       <div className="err">{err}</div>
     </div>
   )
-  if (!data) return <PageSkeleton kpis={6} cards={3} />
+  if (!data) return <PageSkeleton kpis={7} cards={3} />
 
   const k = data.kpis
   const d = data.deltas || {}
@@ -88,17 +86,27 @@ export default function Dashboard() {
           target={buildTarget(k.prod_30, tg.prod_30, false, '', tp)} />
         <Kpi label="12's Cartons" value={fmt(k.prod_12)} note="formed this period" accent={C.teal}
           target={buildTarget(k.prod_12, tg.prod_12, false, '', tp)} />
+        {/* 'diesel' is the target key for total fuel burned (litres) — actual is
+            k.total_fuel; don't "fix" tg.diesel to tg.total_fuel (no such target). */}
         <Kpi label="Fuel Burned" value={fmt(k.total_fuel)} unit="L" accent={C.blue}
-          note={`${fmt1(k.fuel_eff)} L/1k${tg.fuel_eff ? ` · target ${fmt1(tg.fuel_eff)}` : ''}`}
+          note={`${fmt1(k.fuel_eff)} L / 1k trays`}
           delta={{ value: d.fuel_eff, betterWhenLower: true }} sparkColor={C.blue} spark={fuelSpark}
           target={buildTarget(k.total_fuel, tg.diesel, true, ' L', tp)} />
+        <Kpi label="Fuel Efficiency" value={fmt1(k.fuel_eff)} unit="L/1k" note="litres per 1,000 trays" accent={C.blue}
+          target={buildTarget(k.fuel_eff, tg.fuel_eff, true, '', tp)} />
         <Kpi label="Downtime" value={fmt1(k.total_downtime_min / 60)} unit="hrs" note={`${fmt1(k.downtime_pct)}% of scheduled`} accent={C.red}
           delta={{ value: d.downtime_pct, suffix: 'pp', betterWhenLower: true }}
           target={buildTarget(k.downtime_pct, tg.downtime_pct, true, '%', tp)} />
         <Kpi label="Re-pulped" value={fmt(k.total_repulped)} note={`${fmt1(k.repulp_rate)}% reject rate`} accent={C.purple}
-          delta={{ value: d.total_repulped, betterWhenLower: true }}
+          delta={{ value: d.repulp_rate, suffix: 'pp', betterWhenLower: true }}
           target={buildTarget(k.repulp_rate, tg.repulp_rate, true, '%', tp)} />
       </div>
+
+      {!tp && k.total_qty > 0 && (
+        <div className="banner" style={{ marginTop: -6 }}>
+          Custom range — 30's, 12's &amp; diesel targets show only for a single day, week, or full calendar month.
+        </div>
+      )}
 
       {d.prev_label && <div className="banner" style={{ marginTop: -6 }}>Trend vs previous period ({d.prev_label})</div>}
 

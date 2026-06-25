@@ -212,9 +212,12 @@ export default function Reports() {
                 target={buildTarget(k.prod_30, tg.prod_30, false, '', tp)} />
               <Kpi label="12's Cartons" value={fmt(k.prod_12)} note="formed" accent={C.teal}
                 target={buildTarget(k.prod_12, tg.prod_12, false, '', tp)} />
+              {/* 'diesel' target key pairs with the total_fuel actual (litres burned). */}
               <Kpi label="Fuel Burned" value={fmt(k.total_fuel)} unit="L"
-                note={`${fmt1(k.fuel_eff)} L/1k${tg.fuel_eff ? ` · target ${fmt1(tg.fuel_eff)}` : ''}`} accent={C.blue}
+                note={`${fmt1(k.fuel_eff)} L / 1k trays`} accent={C.blue}
                 target={buildTarget(k.total_fuel, tg.diesel, true, ' L', tp)} />
+              <Kpi label="Fuel Efficiency" value={fmt1(k.fuel_eff)} unit="L/1k" note="litres per 1,000 trays" accent={C.blue}
+                target={buildTarget(k.fuel_eff, tg.fuel_eff, true, '', tp)} />
               <Kpi label="Downtime" value={fmt1(k.total_downtime_min / 60)} unit="hrs" note={`${fmt1(k.downtime_pct)}% of scheduled`} accent={C.red}
                 target={buildTarget(k.downtime_pct, tg.downtime_pct, true, '%', tp)} />
               <Kpi label="Re-pulped" value={fmt(k.total_repulped)} note={`${fmt1(k.repulp_rate)}% reject rate`} accent={C.purple}

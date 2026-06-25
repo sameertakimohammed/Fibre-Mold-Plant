@@ -230,6 +230,11 @@ tr:hover td{background:var(--panel2)}
   color:var(--ink);padding:8px 10px;font-family:var(--mono);font-size:13px;text-align:right;transition:.15s}
 .tgt-grid input:hover{border-color:var(--line2)}
 .tgt-grid input:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,166,35,.13)}
+.tgt-grid th.tgt-actual-h,.tgt-grid td.tgt-actual{border-left:1px solid var(--line);text-align:right;white-space:nowrap}
+.tgt-act-val{font-family:var(--mono);font-size:13px;color:var(--ink)}
+.tgt-att{font-family:var(--mono);font-size:11px;margin-left:6px;padding:1px 7px;border-radius:999px}
+.tgt-att.met{color:var(--green);background:rgba(63,185,80,.13)}
+.tgt-att.miss{color:var(--amber);background:rgba(245,166,35,.13)}
 .form-section{font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--amber);
   margin:22px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}
 .form-section:first-child{margin-top:0}
