@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import { Kpi, Card, PageHead, Empty } from '../components/ui'
 import { useToast } from '../context/ToastContext'
 import { C, fmt, fmt1 } from '../api/charts'
+import { buildTarget, cap } from '../lib/targets'
 import AskAI from '../components/AskAI'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -115,6 +116,8 @@ export default function Reports() {
   }
 
   const k = summary?.kpis
+  const tg = summary?.targets || {}
+  const tp = summary?.target_period   // matches the chosen cadence (daily/weekly/monthly)
   const hasData = k && k.total_qty > 0
 
   return (
@@ -202,13 +205,20 @@ export default function Reports() {
       {summary && (
         hasData ? (
           <>
-            <div className="rep-preview-h">Preview · {spanText}</div>
+            <div className="rep-preview-h">Preview · {spanText}{tp ? ` · vs ${cap(tp)} target` : ''}</div>
             <div className="kpis">
               <Kpi label="Total Trays" value={fmt(k.total_qty)} note={`${k.active_days} active days`} accent={C.amber} />
-              <Kpi label="Avg / Day" value={fmt(k.avg_per_day)} note="trays produced" accent={C.green} />
-              <Kpi label="Fuel Burned" value={fmt(k.total_fuel)} unit="L" note={`${fmt1(k.fuel_eff)} L / 1k trays`} accent={C.blue} />
-              <Kpi label="Downtime" value={fmt1(k.total_downtime_min / 60)} unit="hrs" note={`${fmt1(k.downtime_pct)}% of scheduled`} accent={C.red} />
-              <Kpi label="Re-pulped" value={fmt(k.total_repulped)} note={`${fmt1(k.repulp_rate)}% reject rate`} accent={C.purple} />
+              <Kpi label="30's Trays" value={fmt(k.prod_30)} note="formed" accent={C.green}
+                target={buildTarget(k.prod_30, tg.prod_30, false, '', tp)} />
+              <Kpi label="12's Cartons" value={fmt(k.prod_12)} note="formed" accent={C.teal}
+                target={buildTarget(k.prod_12, tg.prod_12, false, '', tp)} />
+              <Kpi label="Fuel Burned" value={fmt(k.total_fuel)} unit="L"
+                note={`${fmt1(k.fuel_eff)} L/1k${tg.fuel_eff ? ` · target ${fmt1(tg.fuel_eff)}` : ''}`} accent={C.blue}
+                target={buildTarget(k.total_fuel, tg.diesel, true, ' L', tp)} />
+              <Kpi label="Downtime" value={fmt1(k.total_downtime_min / 60)} unit="hrs" note={`${fmt1(k.downtime_pct)}% of scheduled`} accent={C.red}
+                target={buildTarget(k.downtime_pct, tg.downtime_pct, true, '%', tp)} />
+              <Kpi label="Re-pulped" value={fmt(k.total_repulped)} note={`${fmt1(k.repulp_rate)}% reject rate`} accent={C.purple}
+                target={buildTarget(k.repulp_rate, tg.repulp_rate, true, '%', tp)} />
             </div>
           </>
         ) : (

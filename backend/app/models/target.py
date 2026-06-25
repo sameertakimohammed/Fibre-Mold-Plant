@@ -1,27 +1,33 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Float, Integer, DateTime
+from sqlalchemy import String, Float, Integer, DateTime, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from ..core.database import Base
 
 
 class KpiTarget(Base):
-    """A management target for a single KPI, compared against actuals on the
-    dashboard ("vs target" on the KPI cards).
+    """A management target for one KPI at one cadence, compared against actuals
+    on the dashboard ("vs target" on the KPI cards).
 
-    One row per metric. ``metric`` is a stable string key (see
-    routers/targets.ALLOWED_METRICS) rather than a DB enum, so adding a new
-    target needs no migration. All targets are stored as RATES so they compare
-    cleanly across any date range:
+    One row per (``metric``, ``period``). ``metric`` is a stable string key (see
+    routers/targets.METRICS) and ``period`` is one of daily/weekly/monthly, so
+    adding a metric or a cadence needs no migration. There are two kinds of
+    metric (routers/targets.METRICS records which is which):
 
-      * avg_per_day  — trays per active day (higher is better)
-      * fuel_eff     — litres per 1,000 trays (lower is better)
-      * downtime_pct — downtime as % of scheduled hours (lower is better)
-      * repulp_rate  — re-pulped trays as % of output (lower is better)
+      * volume — a *total* for one period of that length: 30's Trays output,
+                 12's Cartons output, diesel litres. These scale with the
+                 period, so each cadence carries its own number.
+      * rate   — a ratio independent of period length: fuel efficiency
+                 (L/1,000 trays), downtime %, reject %. Stored per cadence too
+                 so a manager may set a stricter daily goal than the monthly one.
     """
     __tablename__ = "kpi_targets"
+    __table_args__ = (
+        UniqueConstraint("metric", "period", name="uq_kpi_target_metric_period"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    metric: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    metric: Mapped[str] = mapped_column(String(40), index=True)
+    period: Mapped[str] = mapped_column(String(10), index=True, default="monthly")
     value: Mapped[float] = mapped_column(Float, default=0)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

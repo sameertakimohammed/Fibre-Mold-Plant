@@ -217,6 +217,19 @@ tr:hover td{background:var(--panel2)}
 .fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,166,35,.13)}
 .fld.full{grid-column:1/-1}
 .fld textarea{resize:vertical;min-height:62px}
+/* KPI targets editor: metric × cadence grid */
+.tgt-wrap{overflow-x:auto}
+.tgt-grid{width:100%;border-collapse:collapse;min-width:380px}
+.tgt-grid th{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--mut);
+  text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+.tgt-grid th:not(:first-child){text-align:right}
+.tgt-grid td{padding:7px 8px;border-bottom:1px solid var(--line)}
+.tgt-grid .tgt-metric{font-size:13px;color:var(--ink);white-space:nowrap}
+.tgt-grid .tgt-metric .hint{display:inline;font-size:10px;min-width:0}
+.tgt-grid input{width:100%;min-width:78px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);
+  color:var(--ink);padding:8px 10px;font-family:var(--mono);font-size:13px;text-align:right;transition:.15s}
+.tgt-grid input:hover{border-color:var(--line2)}
+.tgt-grid input:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,166,35,.13)}
 .form-section{font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--amber);
   margin:22px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}
 .form-section:first-child{margin-top:0}

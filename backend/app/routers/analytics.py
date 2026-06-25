@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 from ..core.database import get_db
 from ..models.production import ProductionShift
 from ..models.operations import Delivery, MonthlyStock
-from ..models.target import KpiTarget
 from ..models.user import User
 from ..deps import get_current_user
+from .targets import infer_period, resolve_targets
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 
@@ -150,6 +150,12 @@ def summary(
     prod_totals = {k: sum(getattr(s, k) for s in shifts) for k, _ in PROD_FIELDS}
     hp_totals = [sum(getattr(s, f"hp{i}") for s in shifts) for i in range(1, 7)]
 
+    # Product-line roll-ups for the supervisor's two targeted lines:
+    #   30's Trays   = 30's Small + 30's Large
+    #   12's Cartons = 12's Normal + Half Face + Full Face
+    prod_30 = prod_totals["p30s"] + prod_totals["p30l"]
+    prod_12 = prod_totals["p12n"] + prod_totals["p12hf"] + prod_totals["p12ff"]
+
     # By day
     day_map = defaultdict(lambda: {"qty": 0.0, "fuel": 0.0, "down": 0.0, "prods": defaultdict(float)})
     for s in shifts:
@@ -222,8 +228,12 @@ def summary(
 
     insights = _build_insights(shifts, by_day, agg, deliveries)
 
-    # ---- Management targets (rates, comparable across any range) ----
-    targets = {t.metric: t.value for t in db.query(KpiTarget).all()}
+    # ---- Management targets for this window's cadence (daily/weekly/monthly) --
+    # The cadence is inferred from the span: 1 day → daily, 7 days → weekly, a
+    # full calendar month → monthly. Volume targets only apply to a matching
+    # span; rate targets compare on any range (see routers/targets).
+    target_period = infer_period(start, end)
+    targets = resolve_targets(db, target_period)
 
     # ---- Run-rate forecast for an in-progress range (e.g. the current month) ----
     # Projects period output linearly from the elapsed-vs-total calendar days.
@@ -242,12 +252,14 @@ def summary(
             }
 
     kpis = {**agg,
+            "prod_30": prod_30, "prod_12": prod_12,
             "deliv_30": deliv_30, "deliv_12": deliv_12, "deliv_pallets": deliv_pallets}
 
     return {
         "kpis": kpis,
         "deltas": deltas,
         "targets": targets,
+        "target_period": target_period,
         "forecast": forecast,
         "insights": insights,
         "prod_totals": prod_totals,

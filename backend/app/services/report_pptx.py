@@ -233,17 +233,20 @@ def _month_production_slide(prs, month: MonthData, targets: dict, ai_note=None):
     # KPI tiles (right column).
     tx, tw, th, gap = Inches(8.75), Inches(3.7), Inches(0.74), Inches(0.14)
     top = Inches(1.7)
-    tgt = targets.get("avg_per_day")
-    avg_label = "Avg trays / day"
-    if tgt:
-        avg_label = f"Avg / day · {round(m['avg_per_day'] / tgt * 100)}% of {_fmt(tgt)} target"
+    # Monthly production targets (supervisor's plan) shown on the product tiles.
+    mix30 = month.mix["30's trays"]
+    mix12 = month.mix["12's cartons"]
+    t30 = targets.get("prod_30")
+    t12 = targets.get("prod_12")
+    lbl30 = f"30's · {round(mix30 / t30 * 100)}% of {_fmt(t30)} target" if t30 else "30's trays"
+    lbl12 = f"12's · {round(mix12 / t12 * 100)}% of {_fmt(t12)} target" if t12 else "12's cartons"
     tiles = [
         (_fmt(m["total_qty"]), "Total trays produced", AMBER),
-        (_fmt(month.mix["30's trays"]), "30's trays", GREEN),
-        (_fmt(month.mix["12's cartons"]), "12's cartons", BLUE),
+        (_fmt(mix30), lbl30, GREEN),
+        (_fmt(mix12), lbl12, BLUE),
         (_fmt(month.mix["Hot pressed"]), "Hot pressed", PURPLE),
         (_fmt(month.mix["Labelled"]), "Labelled", AMBER),
-        (_fmt(m["avg_per_day"]), avg_label, GREEN),
+        (_fmt(m["avg_per_day"]), "Avg trays / day", GREEN),
     ]
     for i, (v, l, acc) in enumerate(tiles):
         _tile(s, tx, top + i * (th + gap), tw, th, v, l, acc, vsize=18, lsize=9)
