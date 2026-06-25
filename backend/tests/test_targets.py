@@ -109,6 +109,15 @@ def test_summary_daily_window_uses_daily_target(client, role_users, admin_header
     assert body["targets"].get("prod_30") == 31000
 
 
+def test_summary_one_sided_window_has_no_cadence(client, admin_headers):
+    """A window with only start (open-ended) has no cadence: target_period None."""
+    r = client.get("/api/v1/analytics/summary?start=2026-05-10", headers=admin_headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["target_period"] is None
+    assert "prod_30" not in body["targets"]            # volume omitted, no cadence
+
+
 def test_summary_custom_range_drops_volume_keeps_rate(client, role_users, admin_headers):
     """A 10-day span has no cadence: volume targets drop, rate targets fall back."""
     r = client.get("/api/v1/analytics/summary?start=2026-05-05&end=2026-05-14",

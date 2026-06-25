@@ -33,6 +33,7 @@ export default function Targets() {
 
   const save = async () => {
     setBusy(true)
+    const skipped = []
     try {
       for (const m of TARGET_METRICS) {
         for (const p of PERIODS) {
@@ -40,11 +41,12 @@ export default function Targets() {
           if (raw === orig[m.key][p]) continue           // unchanged cell
           if (raw === '' || raw == null) { await api.deleteTarget(p, m.key); continue }
           const num = parseFloat(raw)
-          if (!isFinite(num) || num < 0) continue
+          if (!isFinite(num) || num < 0) { skipped.push(`${m.label} (${p})`); continue }
           await api.setTarget(p, m.key, num)
         }
       }
-      toast.ok('Targets saved.')
+      if (skipped.length) toast.err(`Saved. Skipped ${skipped.length} invalid cell(s) — must be 0 or greater: ${skipped.join(', ')}`)
+      else toast.ok('Targets saved.')
       load()
     } catch (e) { toast.err(e.message) } finally { setBusy(false) }
   }
@@ -71,7 +73,7 @@ export default function Targets() {
                       </td>
                       {PERIODS.map(p => (
                         <td key={p}>
-                          <input type="number" value={vals[m.key][p]} placeholder="—"
+                          <input type="number" min="0" value={vals[m.key][p]} placeholder="—"
                             disabled={!editable || busy}
                             onChange={e => set(m.key, p, e.target.value)} />
                         </td>

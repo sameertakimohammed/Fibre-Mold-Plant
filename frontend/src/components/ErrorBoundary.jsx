@@ -1,5 +1,5 @@
 import { Component } from 'react'
-import { isChunkLoadError, reloadOnceForChunk, recentlyReloadedForChunk } from '../lib/chunkReload'
+import { isChunkLoadError, reloadOnceForChunk, hasGivenUpOnChunk } from '../lib/chunkReload'
 
 // Catches render-time errors anywhere below it and shows a friendly card
 // instead of white-screening the whole dashboard.
@@ -23,9 +23,11 @@ export default class ErrorBoundary extends Component {
 
   render() {
     if (this.state.error) {
-      // Stale-chunk error and a reload is already on the way (see
-      // componentDidCatch) — show a calm "updating" card, not the alarm.
-      if (isChunkLoadError(this.state.error) && !recentlyReloadedForChunk()) {
+      // Stale-chunk error with auto-reload attempts still left — componentDidCatch
+      // is about to reload, so show a calm "updating" card. Once those attempts are
+      // exhausted (hasGivenUpOnChunk), fall through to the normal error card with a
+      // manual Reload button instead of looping.
+      if (isChunkLoadError(this.state.error) && !hasGivenUpOnChunk()) {
         return (
           <div className="main">
             <div className="card" style={{ maxWidth: 520, margin: '8vh auto', textAlign: 'center' }}>
