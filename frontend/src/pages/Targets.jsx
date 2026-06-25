@@ -120,8 +120,9 @@ export default function Targets() {
               </table>
             </div>
             <div className="hint" style={{ marginTop: 12 }}>
+              Daily = a normal weekday · Weekly = Mon–Fri (5 days) · Saturday = the reduced Saturday run · Monthly = the planned month.
               Volume targets (trays, litres) are per-period totals; rates (L/1k, %) are the same goal at every cadence.
-              Weekly = Mon–Sun (seeded as the monthly plan pro-rated to 7 days). “This month” compares the month-to-date actual against the monthly goal.
+              “This month” compares the month-to-date actual against the monthly goal.
               {editable ? ' Blank a cell (or enter 0) to remove that target.' : ''}
             </div>
             {editable && (

@@ -14,7 +14,8 @@ export const TARGET_METRICS = [
   { key: 'repulp_rate', label: 'Reject rate', lower: true, unit: '%', kind: 'rate' },
 ]
 
-export const PERIODS = ['daily', 'weekly', 'monthly']
+// daily = normal weekday · weekly = Mon–Fri · saturday = reduced Sat run · monthly
+export const PERIODS = ['daily', 'weekly', 'saturday', 'monthly']
 
 // Which analytics-summary `kpis` field holds the actual for each target metric
 // (diesel's actual is the total fuel burned in litres).

@@ -15,13 +15,16 @@ def test_defaults_seeded(client, admin_headers):
     rows = client.get("/api/v1/targets", headers=admin_headers).json()
     by = {(t["metric"], t["period"]): t["value"] for t in rows}
     assert by[("prod_30", "daily")] == 30450
+    assert by[("prod_30", "weekly")] == 152250       # Mon–Fri = 5 × daily
+    assert by[("prod_30", "saturday")] == 23200      # reduced Saturday run
     assert by[("prod_30", "monthly")] == 619150
-    assert by[("prod_12", "daily")] == 33600
+    assert by[("prod_12", "saturday")] == 25600
+    assert by[("diesel", "saturday")] == 490
     assert by[("diesel", "monthly")] == 21070
-    # Each volume/rate metric carries all three cadences.
+    # Each volume/rate metric carries all four cadences.
     for metric in ("prod_30", "prod_12", "diesel", "fuel_eff", "downtime_pct", "repulp_rate"):
         periods = {t["period"] for t in rows if t["metric"] == metric}
-        assert periods == {"daily", "weekly", "monthly"}, metric
+        assert periods == {"daily", "weekly", "saturday", "monthly"}, metric
 
 
 @pytest.mark.parametrize("role,expected", [
@@ -124,6 +127,34 @@ def test_summary_delta_includes_repulp_rate_pp(client, admin_headers):
     deltas = r.json()["deltas"]
     assert deltas is not None and "repulp_rate" in deltas
     assert round(deltas["repulp_rate"], 1) == 2.0   # 4% - 2% = +2 pp
+
+
+def test_summary_saturday_window_uses_saturday_target(client, role_users, admin_headers):
+    """A single-Saturday window resolves to the reduced 'saturday' target."""
+    from datetime import date, timedelta
+    base = date(2026, 6, 1)
+    sat = base + timedelta(days=(5 - base.weekday()) % 7)   # first Saturday on/after the 1st
+    assert sat.weekday() == 5
+    client.put("/api/v1/targets/saturday/prod_30", headers=role_users["manager"]["headers"],
+               json={"value": 23200})
+    r = client.get(f"/api/v1/analytics/summary?start={sat}&end={sat}", headers=admin_headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["target_period"] == "saturday"
+    assert body["targets"].get("prod_30") == 23200
+
+
+def test_summary_mon_fri_window_is_weekly(client, admin_headers):
+    """A Monday–Friday (5-day) window resolves to the weekly cadence."""
+    from datetime import date, timedelta
+    base = date(2026, 6, 1)
+    sat = base + timedelta(days=(5 - base.weekday()) % 7)
+    mon = sat - timedelta(days=5)   # Monday of that week
+    fri = mon + timedelta(days=4)   # Friday
+    assert mon.weekday() == 0 and fri.weekday() == 4
+    r = client.get(f"/api/v1/analytics/summary?start={mon}&end={fri}", headers=admin_headers)
+    assert r.status_code == 200, r.text
+    assert r.json()["target_period"] == "weekly"
 
 
 def test_summary_one_sided_window_has_no_cadence(client, admin_headers):
