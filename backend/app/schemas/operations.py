@@ -159,6 +159,7 @@ class TargetIn(BaseModel):
 class TargetOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     metric: str
+    period: str
     value: float
     updated_at: datetime | None = None
     updated_by: int | None = None

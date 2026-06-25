@@ -6,52 +6,41 @@ import { Kpi, Card, PageHead, PageSkeleton, Empty, Modal } from '../components/u
 import { usePeriod } from '../components/Period'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
+import { TARGET_METRICS, PERIODS, cap, buildTarget } from '../lib/targets'
 
 const baseOpts = { responsive: true, maintainAspectRatio: false }
 const INS_IC = { bad: '✕', warn: '⚠', good: '✓', info: 'ℹ' }
 
-// Metrics a target can be set against. `lower` = lower-is-better.
-const TARGET_METRICS = [
-  { key: 'avg_per_day', label: 'Avg trays / day', lower: false, unit: '' },
-  { key: 'fuel_eff', label: 'Fuel efficiency (L/1k)', lower: true, unit: '' },
-  { key: 'downtime_pct', label: 'Downtime', lower: true, unit: '%' },
-  { key: 'repulp_rate', label: 'Reject rate', lower: true, unit: '%' },
-]
-
-// Build the {text, pct, met} object the Kpi target bar renders, or null.
-function buildTarget(actual, targetVal, lower, unit = '') {
-  if (targetVal == null || targetVal <= 0) return null
-  const attain = lower
-    ? (actual > 0 ? (targetVal / actual) * 100 : 100)
-    : (actual / targetVal) * 100
-  const met = lower ? actual <= targetVal : actual >= targetVal
-  return { pct: attain, met, text: `Target ${fmt(targetVal)}${unit} · ${Math.round(attain)}%` }
-}
-
-// Manager+ editor for the four KPI targets.
-function TargetsModal({ current, onClose, onSaved }) {
+// Manager+ editor: a metric × cadence grid of targets.
+function TargetsModal({ onClose, onSaved }) {
   const toast = useToast()
-  const [vals, setVals] = useState(() => {
-    const o = {}
-    TARGET_METRICS.forEach(m => { o[m.key] = current[m.key] != null ? String(current[m.key]) : '' })
-    return o
-  })
+  const [vals, setVals] = useState(null)   // { metric: { period: 'string' } }
+  const [orig, setOrig] = useState(null)
   const [busy, setBusy] = useState(false)
-  const set = (k, v) => setVals(s => ({ ...s, [k]: v }))
+
+  useEffect(() => {
+    api.listTargets().then(rows => {
+      const o = {}
+      TARGET_METRICS.forEach(m => { o[m.key] = {}; PERIODS.forEach(p => { o[m.key][p] = '' }) })
+      rows.forEach(r => { if (o[r.metric] && PERIODS.includes(r.period)) o[r.metric][r.period] = String(r.value) })
+      setVals(o); setOrig(JSON.parse(JSON.stringify(o)))
+    }).catch(e => toast.err(e.message))
+  }, [])
+
+  const set = (m, p, v) => setVals(s => ({ ...s, [m]: { ...s[m], [p]: v } }))
 
   const save = async () => {
     setBusy(true)
     try {
       for (const m of TARGET_METRICS) {
-        const raw = vals[m.key]
-        const had = current[m.key] != null
-        if (raw === '' || raw == null) {
-          if (had) await api.deleteTarget(m.key)   // cleared -> remove
-          continue
+        for (const p of PERIODS) {
+          const raw = vals[m.key][p]
+          if (raw === orig[m.key][p]) continue           // unchanged cell
+          if (raw === '' || raw == null) { await api.deleteTarget(p, m.key); continue }
+          const num = parseFloat(raw)
+          if (!isFinite(num) || num < 0) continue
+          await api.setTarget(p, m.key, num)
         }
-        const num = parseFloat(raw)
-        if (!isFinite(num) || num < 0) continue
-        if (!had || num !== current[m.key]) await api.setTarget(m.key, num)
       }
       toast.ok('Targets saved.')
       onSaved()
@@ -59,20 +48,39 @@ function TargetsModal({ current, onClose, onSaved }) {
   }
 
   return (
-    <Modal title="KPI Targets" sub="Management goals shown against actuals on the cards" onClose={onClose}
+    <Modal title="KPI Targets" sub="Daily, weekly & monthly goals — shown against actuals on the cards" onClose={onClose}
       footer={<>
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save Targets'}</button>
+        <button className="btn btn-primary" onClick={save} disabled={busy || !vals}>{busy ? 'Saving…' : 'Save Targets'}</button>
       </>}>
-      <div className="form-grid">
-        {TARGET_METRICS.map(m => (
-          <div className="fld" key={m.key}>
-            <label>{m.label}{m.unit ? ` (${m.unit})` : ''} {m.lower ? '· lower better' : ''}</label>
-            <input type="number" value={vals[m.key]} placeholder="—" onChange={e => set(m.key, e.target.value)} />
-          </div>
-        ))}
+      {!vals ? <div className="hint">Loading…</div> : (
+        <div className="tgt-wrap">
+          <table className="tgt-grid">
+            <thead>
+              <tr><th>Metric</th>{PERIODS.map(p => <th key={p}>{cap(p)}</th>)}</tr>
+            </thead>
+            <tbody>
+              {TARGET_METRICS.map(m => (
+                <tr key={m.key}>
+                  <td className="tgt-metric">
+                    {m.label}
+                    <span className="hint"> {m.unit.trim() || (m.kind === 'volume' ? 'pcs' : '')}{m.lower ? ' · lower better' : ''}</span>
+                  </td>
+                  {PERIODS.map(p => (
+                    <td key={p}>
+                      <input type="number" value={vals[m.key][p]} placeholder="—"
+                        onChange={e => set(m.key, p, e.target.value)} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className="hint" style={{ marginTop: 10 }}>
+        Blank removes a target. Volume targets (trays, litres) are per-period totals; rates (L/1k, %) are the same goal each cadence. The dashboard compares each view against the matching cadence.
       </div>
-      <div className="hint" style={{ marginTop: 10 }}>Leave a field blank to remove that target. Targets are rates, so they compare across any date range.</div>
     </Modal>
   )
 }
@@ -127,7 +135,7 @@ export default function Dashboard() {
       <div className="err">{err}</div>
     </div>
   )
-  if (!data) return <PageSkeleton kpis={5} cards={3} />
+  if (!data) return <PageSkeleton kpis={6} cards={3} />
 
   const k = data.kpis
   const d = data.deltas || {}
@@ -144,6 +152,7 @@ export default function Dashboard() {
   const sh = data.by_shift
   const avgLine = k.avg_per_day || 0
   const tg = data.targets || {}
+  const tp = data.target_period   // 'daily' | 'weekly' | 'monthly' | null
   const fc = data.forecast
 
   return (
@@ -153,17 +162,20 @@ export default function Dashboard() {
       <div className="kpis">
         <Kpi label="Total Trays" value={fmt(k.total_qty)} note={`${k.active_days} active days`} accent={C.amber}
           delta={{ value: d.total_qty }} spark={qtySpark} />
-        <Kpi label="Avg / Day" value={fmt(k.avg_per_day)} note="trays produced" accent={C.green}
-          delta={{ value: d.avg_per_day }} target={buildTarget(k.avg_per_day, tg.avg_per_day, false)} />
-        <Kpi label="Fuel Burned" value={fmt(k.total_fuel)} unit="L" note={`${fmt1(k.fuel_eff)} L / 1k trays`} accent={C.blue}
+        <Kpi label="30's Trays" value={fmt(k.prod_30)} note="formed this period" accent={C.green}
+          target={buildTarget(k.prod_30, tg.prod_30, false, '', tp)} />
+        <Kpi label="12's Cartons" value={fmt(k.prod_12)} note="formed this period" accent={C.teal}
+          target={buildTarget(k.prod_12, tg.prod_12, false, '', tp)} />
+        <Kpi label="Fuel Burned" value={fmt(k.total_fuel)} unit="L" accent={C.blue}
+          note={`${fmt1(k.fuel_eff)} L/1k${tg.fuel_eff ? ` · target ${fmt1(tg.fuel_eff)}` : ''}`}
           delta={{ value: d.fuel_eff, betterWhenLower: true }} sparkColor={C.blue} spark={fuelSpark}
-          target={buildTarget(k.fuel_eff, tg.fuel_eff, true)} />
+          target={buildTarget(k.total_fuel, tg.diesel, true, ' L', tp)} />
         <Kpi label="Downtime" value={fmt1(k.total_downtime_min / 60)} unit="hrs" note={`${fmt1(k.downtime_pct)}% of scheduled`} accent={C.red}
           delta={{ value: d.downtime_pct, suffix: 'pp', betterWhenLower: true }}
-          target={buildTarget(k.downtime_pct, tg.downtime_pct, true, '%')} />
+          target={buildTarget(k.downtime_pct, tg.downtime_pct, true, '%', tp)} />
         <Kpi label="Re-pulped" value={fmt(k.total_repulped)} note={`${fmt1(k.repulp_rate)}% reject rate`} accent={C.purple}
           delta={{ value: d.total_repulped, betterWhenLower: true }}
-          target={buildTarget(k.repulp_rate, tg.repulp_rate, true, '%')} />
+          target={buildTarget(k.repulp_rate, tg.repulp_rate, true, '%', tp)} />
       </div>
 
       {d.prev_label && <div className="banner" style={{ marginTop: -6 }}>Trend vs previous period ({d.prev_label})</div>}
@@ -225,7 +237,6 @@ export default function Dashboard() {
 
       {showTargets && (
         <TargetsModal
-          current={tg}
           onClose={() => setShowTargets(false)}
           onSaved={() => { setShowTargets(false); reload() }}
         />

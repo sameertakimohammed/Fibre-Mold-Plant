@@ -8,6 +8,7 @@ from ..core.config import settings
 from ..models.user import User, Role
 from ..models.production import ProductionShift, Shift
 from ..models.operations import Delivery, MonthlyStock
+from ..models.target import KpiTarget
 
 logger = logging.getLogger("app.seed")
 
@@ -142,8 +143,29 @@ def import_may_data(db: Session):
         logger.info(f"[seed] imported {dcount} deliveries + monthly stock")
 
 
+def ensure_default_targets(db: Session):
+    """Seed the supervisor's daily/weekly/monthly targets into an EMPTY table.
+
+    Gated on the table being completely empty (mirrors import_may_data): a fresh
+    install gets the full set, while an existing install is left untouched so a
+    manager's edits — or a deliberately cleared target — are never clobbered or
+    resurrected on the next boot. Values live in routers.targets.DEFAULT_TARGETS.
+    """
+    if db.query(KpiTarget).count() > 0:
+        return
+    from ..routers.targets import DEFAULT_TARGETS
+    n = 0
+    for metric, by_period in DEFAULT_TARGETS.items():
+        for period, value in by_period.items():
+            db.add(KpiTarget(metric=metric, period=period, value=value))
+            n += 1
+    db.commit()
+    logger.info(f"[seed] seeded {n} default KPI targets")
+
+
 def run_seed(db: Session):
     ensure_admin(db)
+    ensure_default_targets(db)
     # Full historical bundle (Aug 2024 → May 2026) parsed from the plant's
     # monthly emails into data/history.json. Idempotent — safe on every boot.
     # Disabled in the test suite (SEED_HISTORY=false) which seeds its own data.

@@ -221,10 +221,11 @@ export const api = {
   upsertStock: (period, data) => request(`/monthly-stock/${period}`, { method: 'PUT', body: data }),
   deleteStock: (period) => request(`/monthly-stock/${period}`, { method: 'DELETE' }),
 
-  // KPI targets (manager+ to set). GET is open to any authenticated user.
+  // KPI targets, per cadence (period = daily|weekly|monthly). Manager+ to set;
+  // GET is open to any authenticated user. Each row is { metric, period, value }.
   listTargets: () => request('/targets'),
-  setTarget: (metric, value) => request(`/targets/${metric}`, { method: 'PUT', body: { value } }),
-  deleteTarget: (metric) => request(`/targets/${metric}`, { method: 'DELETE' }),
+  setTarget: (period, metric, value) => request(`/targets/${period}/${metric}`, { method: 'PUT', body: { value } }),
+  deleteTarget: (period, metric) => request(`/targets/${period}/${metric}`, { method: 'DELETE' }),
 
   // Admin: latest database-backup status (age/size/staleness).
   adminBackups: () => request('/admin/backups'),

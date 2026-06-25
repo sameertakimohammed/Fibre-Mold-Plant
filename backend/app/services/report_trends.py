@@ -145,7 +145,10 @@ def collect_trend_data(db: Session, start: date | None, end: date | None) -> Tre
             metrics=_metrics(ms, md), by_day=by_day, causes=causes, mix=mix,
         ))
 
-    targets = {t.metric: t.value for t in db.query(KpiTarget).all()}
+    # The deck is per calendar month, so compare against the MONTHLY targets
+    # (targets are stored per cadence now — see models/target.KpiTarget).
+    targets = {t.metric: t.value for t in
+               db.query(KpiTarget).filter(KpiTarget.period == "monthly").all()}
 
     if start and end:
         span = f"{start} to {end}" if start != end else f"{start}"
