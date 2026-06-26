@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from typing import Annotated
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, field_validator
 from ..models.production import Shift
 
 
@@ -15,9 +15,28 @@ Minutes = Annotated[float, Field(ge=0, le=1440)]   # 0..24h expressed in minutes
 Speed = Annotated[float, Field(ge=0, le=100000)]   # trays/hr upper sanity bound
 
 
+class MachineDetail(BaseModel):
+    """Per-machine attributes from the shift log sheet (quantities live in the
+    typed shift columns, not here). One entry per machine code HGHY/HT1..HT6/LABEL."""
+    paid_hours: Hours = 0
+    run_hours: Hours = 0
+    target_per_hr: NonNegFloat = 0
+    actual_per_hr: NonNegFloat = 0
+    operators: str = ""
+    product_detail: str = ""
+
+
 class ShiftBase(BaseModel):
     work_date: date
     shift: Shift
+    # End-of-shift report sheet fields.
+    supervisor: str = ""
+    staff_count: NonNegInt = 0
+    casual_count: NonNegInt = 0
+    absenteeism: str = ""
+    stock_notes: str = ""
+    delivery_notes: str = ""
+    machines: dict[str, MachineDetail] = Field(default_factory=dict)
     qty: NonNegFloat = 0
     p30s: NonNegFloat = 0
     p30l: NonNegFloat = 0
@@ -48,6 +67,12 @@ class ShiftBase(BaseModel):
     other_min: Minutes = 0
     repulped: NonNegFloat = 0
     comment: str = ""
+
+    @field_validator("machines", mode="before")
+    @classmethod
+    def _machines_default(cls, v):
+        # Pre-existing rows store NULL for machines; treat as an empty grid.
+        return v or {}
 
 
 class ShiftWrite(ShiftBase):

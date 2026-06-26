@@ -190,6 +190,18 @@ class Settings(BaseSettings):
     report_email_hour: int = 7
     report_email_day_of_month: int = 1
 
+    # ── Per-shift report email — DEFAULT OFF ───────────────────────────────
+    # When enabled, a PDF of each shift's log sheet is emailed at the shift's
+    # end time to shift_report_email_to. Nothing sends until this is True AND
+    # email is configured AND recipients are set. Times are in plant_tz.
+    shift_report_enabled: bool = False
+    shift_report_email_to: str = ""           # recipients for the shift report
+    plant_tz: str = "Pacific/Fiji"            # timezone for shift-end firing
+    # Shift end times "HH:MM" (local plant time) → when each shift's PDF is sent.
+    shift_end_day: str = "15:30"              # Day shift (7:30am–3:30pm)
+    shift_end_afternoon: str = "23:30"        # Afternoon shift (3:30pm–11:30pm)
+    shift_end_night: str = "07:30"            # Night shift (11:30pm–7:30am)
+
     class Config:
         env_file = ".env"
         extra = "ignore"

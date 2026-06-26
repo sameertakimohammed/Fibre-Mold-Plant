@@ -6,7 +6,11 @@ import { Kpi, Card, PageHead, PageSkeleton, Empty, Modal } from '../components/u
 import { usePeriod } from '../components/Period'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { SHIFT_GROUPS, SHIFT_NUM_KEYS } from '../components/shiftFields'
+import {
+  SHIFT_GROUPS, SHIFT_NUM_KEYS, SHIFT_EXTRA_FIELDS, SHIFT_MACHINES, MACHINE_ATTRS, emptyMachines,
+} from '../components/shiftFields'
+
+const MACHINE_NUM_ATTRS = new Set(MACHINE_ATTRS.filter(([, , t]) => t === 'number').map(([k]) => k))
 import { shiftWarnings } from '../lib/validate'
 
 const baseOpts = { responsive: true, maintainAspectRatio: false }
@@ -16,16 +20,35 @@ function ShiftEditModal({ shift, onClose, onSaved }) {
   const [form, setForm] = useState(() => {
     const o = { work_date: shift.work_date, shift: shift.shift, comment: shift.comment || '' }
     SHIFT_NUM_KEYS.forEach(k => { o[k] = shift[k] ?? 0 })
+    SHIFT_EXTRA_FIELDS.forEach(([k]) => { o[k] = shift[k] ?? '' })
+    const base = emptyMachines()
+    SHIFT_MACHINES.forEach(({ code }) => {
+      const src = (shift.machines && shift.machines[code]) || {}
+      base[code] = { ...base[code], ...src }
+    })
+    o.machines = base
     return o
   })
   const [busy, setBusy] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const setMachine = (code, attr, v) =>
+    setForm(f => ({ ...f, machines: { ...f.machines, [code]: { ...f.machines[code], [attr]: v } } }))
   const warnings = shiftWarnings(form)
 
   const save = async () => {
     setBusy(true)
     const payload = { work_date: form.work_date, shift: form.shift, comment: form.comment }
     SHIFT_NUM_KEYS.forEach(k => { payload[k] = parseFloat(form[k]) || 0 })
+    SHIFT_EXTRA_FIELDS.forEach(([k, , t]) => { payload[k] = t === 'number' ? (parseFloat(form[k]) || 0) : (form[k] || '') })
+    payload.machines = {}
+    SHIFT_MACHINES.forEach(({ code }) => {
+      const src = form.machines?.[code] || {}
+      const out = {}
+      MACHINE_ATTRS.forEach(([attr]) => {
+        out[attr] = MACHINE_NUM_ATTRS.has(attr) ? (parseFloat(src[attr]) || 0) : (src[attr] || '')
+      })
+      payload.machines[code] = out
+    })
     try {
       await api.updateShift(shift.id, payload)
       toast.ok(`Updated ${form.work_date} · ${form.shift} shift.`)
@@ -59,9 +82,42 @@ function ShiftEditModal({ shift, onClose, onSaved }) {
           </div>
         </div>
       ))}
-      <div className="form-section">Notes</div>
-      <div className="fld full"><label>Comments</label>
-        <textarea value={form.comment} onChange={e => set('comment', e.target.value)} />
+      <div className="form-section">Machine Detail (for the shift report)</div>
+      <div className="tgt-wrap">
+        <table className="tgt-grid">
+          <thead>
+            <tr><th>Machine</th>{MACHINE_ATTRS.map(([k, lbl]) => <th key={k}>{lbl}</th>)}</tr>
+          </thead>
+          <tbody>
+            {SHIFT_MACHINES.map(({ code, label }) => (
+              <tr key={code}>
+                <td className="tgt-metric">{label}</td>
+                {MACHINE_ATTRS.map(([attr, , type]) => (
+                  <td key={attr}>
+                    <input type={type === 'number' ? 'number' : 'text'}
+                      value={form.machines?.[code]?.[attr] ?? ''}
+                      onChange={e => setMachine(code, attr, e.target.value)} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="form-section">Shift Details &amp; Notes</div>
+      <div className="form-grid">
+        {SHIFT_EXTRA_FIELDS.map(([k, lbl, type]) => (
+          <div className={`fld ${type === 'textarea' ? 'full' : ''}`} key={k}>
+            <label>{lbl}</label>
+            {type === 'textarea'
+              ? <textarea value={form[k]} onChange={e => set(k, e.target.value)} />
+              : <input type={type === 'number' ? 'number' : 'text'} value={form[k]} onChange={e => set(k, e.target.value)} />}
+          </div>
+        ))}
+        <div className="fld full"><label>Comments</label>
+          <textarea value={form.comment} onChange={e => set('comment', e.target.value)} />
+        </div>
       </div>
       {warnings.length > 0 && (
         <div className="entry-warn">{warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}</div>
@@ -172,7 +228,7 @@ export default function Production() {
             <table>
               <thead><tr>
                 <th>Date</th><th>Shift</th><th>Trays</th><th>Speed</th><th>Prod Hrs</th><th>Fuel L</th><th>Down min</th>
-                {(canEdit || canDelete) && <th></th>}
+                <th></th>
               </tr></thead>
               <tbody>
                 {rows.map(s => (
@@ -181,15 +237,15 @@ export default function Production() {
                     <td><span className={`tag ${s.shift}`}>{s.shift}</span></td>
                     <td>{fmt(s.qty)}</td><td>{fmt(s.speed)}</td><td>{fmt1(s.prod_hours)}</td>
                     <td>{fmt(s.fuel_use)}</td><td>{fmt(s.downtime_min)}</td>
-                    {(canEdit || canDelete) && (
-                      <td><div className="row-actions">
-                        {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => setEditing(s)}>Edit</button>}
-                        {canDelete && <button className="btn btn-danger btn-sm" onClick={() => remove(s)}>Delete</button>}
-                      </div></td>
-                    )}
+                    <td><div className="row-actions">
+                      <button className="btn btn-ghost btn-sm" title="Shift report PDF"
+                        onClick={() => api.downloadShiftReport(s.id).catch(e => toast.err(e.message))}>⤓ PDF</button>
+                      {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => setEditing(s)}>Edit</button>}
+                      {canDelete && <button className="btn btn-danger btn-sm" onClick={() => remove(s)}>Delete</button>}
+                    </div></td>
                   </tr>
                 ))}
-                {rows.length === 0 && <tr><td colSpan={(canEdit || canDelete) ? 8 : 7} style={{ color: 'var(--dim)' }}>{ql ? 'No shifts match your search.' : 'No shifts logged this period.'}</td></tr>}
+                {rows.length === 0 && <tr><td colSpan={8} style={{ color: 'var(--dim)' }}>{ql ? 'No shifts match your search.' : 'No shifts logged this period.'}</td></tr>}
               </tbody>
             </table>
           </div>

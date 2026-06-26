@@ -114,6 +114,85 @@ def _scheduled_report_email() -> None:
     logger.info("report email job done", extra={"period": f"{start}..{end}"})
 
 
+def _email_shift_report(shift_value: str, day_offsets: list[int]) -> None:
+    """Email the PDF log sheet for the just-ended shift.
+
+    ``day_offsets`` are days-before-today (plant tz) to look for the shift,
+    tried in order — the Night job checks yesterday (its start date) then today,
+    so it works whichever date the shift was logged under.
+    """
+    from zoneinfo import ZoneInfo
+    from ..models.production import ProductionShift, Shift
+    from .report_shift_pdf import build_shift_report_pdf
+    from .email import send_email, email_configured
+
+    if not settings.shift_report_enabled:
+        logger.info("shift report skipped: disabled")
+        return
+    if not email_configured() or not settings.shift_report_email_to:
+        logger.info("shift report skipped: email disabled/unconfigured or no recipients")
+        return
+
+    try:
+        base = datetime.now(ZoneInfo(settings.plant_tz)).date()
+    except Exception:
+        logger.exception("shift report: bad plant_tz %r", settings.plant_tz)
+        return
+    dates = [base - timedelta(days=o) for o in day_offsets]
+
+    db = SessionLocal()
+    try:
+        row = None
+        for d in dates:
+            row = (db.query(ProductionShift)
+                   .filter(ProductionShift.deleted_at.is_(None),
+                           ProductionShift.work_date == d,
+                           ProductionShift.shift == Shift(shift_value))
+                   .first())
+            if row:
+                break
+        if not row:
+            logger.info("shift report: no %s shift logged for %s — nothing to send",
+                        shift_value, [d.isoformat() for d in dates])
+            return
+        data, fname = build_shift_report_pdf(row)
+        work_date = row.work_date.isoformat()
+    finally:
+        db.close()
+
+    subject = f"Shift Report — {work_date} · {shift_value}"
+    body = (
+        f"Attached is the {shift_value} shift production report for {work_date}.\n\n"
+        "This is an automated message from the Fibre Mold Plant dashboard."
+    )
+    send_email(subject, body, settings.shift_report_email_to, attachments=[(fname, data)])
+    logger.info("shift report email sent", extra={"shift": shift_value, "date": work_date})
+
+
+def _shift_report_day() -> None:
+    _email_shift_report("Day", [0])
+
+
+def _shift_report_afternoon() -> None:
+    _email_shift_report("Afternoon", [0])
+
+
+def _shift_report_night() -> None:
+    # Night spans midnight; prefer yesterday (its start date), fall back to today.
+    _email_shift_report("Night", [1, 0])
+
+
+def _parse_hhmm(raw: str) -> tuple[int, int] | None:
+    try:
+        hh, mm = (int(x) for x in str(raw).strip().split(":"))
+        if 0 <= hh <= 23 and 0 <= mm <= 59:
+            return hh, mm
+    except (ValueError, TypeError):
+        pass
+    logger.warning("shift report: bad shift end time %r", raw)
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Lifecycle
 # ---------------------------------------------------------------------------
@@ -171,6 +250,25 @@ def start_scheduler() -> BackgroundScheduler | None:
         )
     else:
         logger.info("report email job not scheduled (cadence=%r)", cadence)
+
+    # Per-shift report email — one job per shift, firing at its end time in the
+    # plant timezone. Registered even when shift_report_enabled is False so the
+    # cadence is visible; each run no-ops early until enabled + configured.
+    shift_jobs = [
+        ("shift_report_day", settings.shift_end_day, _shift_report_day),
+        ("shift_report_afternoon", settings.shift_end_afternoon, _shift_report_afternoon),
+        ("shift_report_night", settings.shift_end_night, _shift_report_night),
+    ]
+    for job_id, hhmm, fn in shift_jobs:
+        parsed = _parse_hhmm(hhmm)
+        if parsed is None:
+            continue
+        hh, mm = parsed
+        sched.add_job(
+            _job_wrapper(fn),
+            trigger="cron", hour=hh, minute=mm, timezone=settings.plant_tz,
+            id=job_id, replace_existing=True, misfire_grace_time=3600, coalesce=True,
+        )
 
     sched.start()
     _scheduler = sched

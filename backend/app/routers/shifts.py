@@ -1,6 +1,7 @@
 import logging
 from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from ..core.database import get_db
@@ -41,6 +42,21 @@ def list_shifts(
     return rows
 
 
+@router.get("/{shift_id}/report")
+def shift_report(shift_id: int, db: Session = Depends(get_db),
+                 _: User = Depends(get_current_user)):
+    """The shift's end-of-shift report as a PDF (the digital log sheet)."""
+    from ..services.report_shift_pdf import build_shift_report_pdf
+    shift = db.get(ProductionShift, shift_id)
+    if not shift or shift.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Shift not found")
+    data, fname = build_shift_report_pdf(shift)
+    return Response(
+        content=data, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
 @router.post("", response_model=ShiftOut, status_code=201)
 def create_shift(body: ShiftCreate, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
@@ -76,7 +92,10 @@ def update_shift(shift_id: int, body: ShiftUpdate, db: Session = Depends(get_db)
     shift = db.get(ProductionShift, shift_id)
     if not shift or shift.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Shift not found")
-    for k, v in body.model_dump().items():
+    # Partial update: only overwrite fields the client actually sent, so editing
+    # (e.g.) the numeric figures in the quick-edit modal never blanks the report
+    # sheet fields (supervisor, machines grid, stock/delivery notes) it omits.
+    for k, v in body.model_dump(exclude_unset=True).items():
         setattr(shift, k, v)
     db.commit()
     db.refresh(shift)
