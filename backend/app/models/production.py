@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime, timezone, date
-from sqlalchemy import String, Integer, Float, Date, DateTime, Enum as SAEnum, ForeignKey, Index, Text
+from sqlalchemy import String, Integer, Float, Date, DateTime, Enum as SAEnum, ForeignKey, Index, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from ..core.database import Base
 
@@ -69,6 +69,21 @@ class ProductionShift(Base):
     repulped: Mapped[float] = mapped_column(Float, default=0)
 
     comment: Mapped[str] = mapped_column(Text, default="")
+
+    # --- End-of-shift report sheet (the Team Leader's log) ---
+    # Captures the rest of the paper sheet so it can be rendered + emailed
+    # automatically at shift end. Quantities stay in the typed columns above
+    # (qty, hp1..hp6, labelling), so analytics is unaffected; `machines` only
+    # holds the extra per-machine attributes (hours/targets/operators/detail).
+    supervisor: Mapped[str] = mapped_column(String(120), default="")
+    staff_count: Mapped[int] = mapped_column(Integer, default=0)
+    casual_count: Mapped[int] = mapped_column(Integer, default=0)
+    absenteeism: Mapped[str] = mapped_column(Text, default="")
+    stock_notes: Mapped[str] = mapped_column(Text, default="")
+    delivery_notes: Mapped[str] = mapped_column(Text, default="")
+    # Per-machine grid keyed by code (HGHY, HT1..HT6, LABEL). JSON mirrors the
+    # MonthlyStock.detail pattern. Nullable: pre-existing rows read as {}.
+    machines: Mapped[dict | None] = mapped_column(JSON, default=dict, nullable=True)
 
     # Audit. created_by FK is ON DELETE SET NULL (set in the migration) so
     # deleting a user can never orphan/break production rows.

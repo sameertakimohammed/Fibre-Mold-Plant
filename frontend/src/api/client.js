@@ -186,6 +186,23 @@ export const api = {
   createShift: (data) => postOrQueue('shift', '/shifts', data),
   updateShift: (id, data) => request(`/shifts/${id}`, { method: 'PUT', body: data }),
   deleteShift: (id) => request(`/shifts/${id}`, { method: 'DELETE' }),
+  // Download a single shift's end-of-shift report PDF (the digital log sheet).
+  downloadShiftReport: async (id) => {
+    const token = getToken()
+    const res = await fetch(`${API_BASE}/shifts/${id}/report`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) throw new Error(`Report failed (${res.status})`)
+    const blob = await res.blob()
+    const cd = res.headers.get('Content-Disposition') || ''
+    const m = cd.match(/filename="?([^"]+)"?/)
+    const name = m ? m[1] : `shift-report-${id}.pdf`
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = name
+    document.body.appendChild(a); a.click(); a.remove()
+    URL.revokeObjectURL(url)
+  },
 
   listDeliveries: (start, end) => {
     const q = new URLSearchParams()
