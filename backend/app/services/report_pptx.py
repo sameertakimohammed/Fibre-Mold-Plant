@@ -16,11 +16,15 @@ with the dashboard KPIs and the xlsx/pdf builders.
 
 build_report_pptx(db, start, end[, period_label]) -> (pptx_bytes, filename)
 """
+import calendar
 import io
+from copy import deepcopy
 from datetime import date
 
 from sqlalchemy.orm import Session
 from pptx import Presentation
+from pptx.oxml import parse_xml
+from pptx.oxml.ns import nsdecls, qn
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
@@ -40,6 +44,12 @@ GREEN = RGBColor(0x36, 0xB3, 0x7E)
 RED = RGBColor(0xE5, 0x6A, 0x4E)
 PURPLE = RGBColor(0x9B, 0x7E, 0xDE)
 BLUE = RGBColor(0x4E, 0x9A, 0xE5)
+
+# Chart chrome on the dark slides. python-pptx charts default to the light
+# Office theme (near-black axis text/lines), which is unreadable on INK — every
+# chart re-colours its axes with these.
+AXIS_TEXT = RGBColor(0xC8, 0xD0, 0xDA)  # tick labels / legend
+GRID = RGBColor(0x3A, 0x45, 0x53)       # gridlines + axis lines
 
 # Chart series palette (applied to the first N series).
 SERIES_COLORS = [AMBER, BLUE, GREEN, PURPLE, RED]
@@ -166,13 +176,57 @@ def _table(slide, left, top, width, headers, rows, col_widths=None,
     return table
 
 
+def _series_to_target_line(chart, color=RED, width_pt=2.25):
+    """Re-home the chart's LAST series from its c:barChart into a c:lineChart
+    that shares the same axes, giving a column+line combo (a flat "target"
+    line over the daily bars). python-pptx can't build combo charts directly,
+    so this works on the chart XML."""
+    bar = chart._chartSpace.find(".//" + qn("c:barChart"))
+    ser = bar.findall(qn("c:ser"))[-1]
+    bar.remove(ser)
+    ax_ids = [ax.get("val") for ax in bar.findall(qn("c:axId"))]
+    line = parse_xml(
+        '<c:lineChart %s>'
+        '<c:grouping val="standard"/><c:varyColors val="0"/>'
+        '<c:ser>'
+        '<c:idx val="%s"/><c:order val="%s"/>'
+        '<c:spPr><a:ln w="%d" cap="rnd">'
+        '<a:solidFill><a:srgbClr val="%s"/></a:solidFill>'
+        '</a:ln></c:spPr>'
+        '<c:marker><c:symbol val="none"/></c:marker>'
+        '<c:smooth val="0"/>'
+        '</c:ser>'
+        '<c:marker val="1"/>'
+        '<c:axId val="%s"/><c:axId val="%s"/>'
+        '</c:lineChart>' % (nsdecls("c", "a"),
+                            ser.find(qn("c:idx")).get("val"),
+                            ser.find(qn("c:order")).get("val"),
+                            Pt(width_pt), color, ax_ids[0], ax_ids[1]))
+    new_ser = line.find(qn("c:ser"))
+    tx = ser.find(qn("c:tx"))
+    if tx is not None:
+        new_ser.insert(2, deepcopy(tx))  # after idx + order
+    smooth = new_ser.find(qn("c:smooth"))
+    for tag in ("c:cat", "c:val"):
+        el = ser.find(qn(tag))
+        if el is not None:
+            smooth.addprevious(deepcopy(el))
+    bar.addnext(line)
+
+
 def _chart(slide, chart_type, left, top, width, height, categories, series,
-           *, legend=False, number_format=None, cat_font=9):
-    """series: list[(name, [values], color|None)]."""
+           *, legend=False, number_format=None, cat_font=9, val_format=None,
+           target=None, target_name="Daily target"):
+    """series: list[(name, [values], color|None)]. ``target`` draws a flat red
+    line at that value across all categories (column charts only);
+    ``val_format`` sets the value-axis tick number format (e.g. '#,##0')."""
     cd = CategoryChartData()
     cd.categories = categories
     for name, values, _color in series:
         cd.add_series(name, values, number_format=number_format)
+    if target is not None:
+        cd.add_series(target_name, [target] * len(categories),
+                      number_format=number_format)
     gframe = slide.shapes.add_chart(chart_type, left, top, width, height, cd)
     chart = gframe.chart
     chart.has_title = False
@@ -181,20 +235,40 @@ def _chart(slide, chart_type, left, top, width, height, categories, series,
         chart.legend.position = XL_LEGEND_POSITION.BOTTOM
         chart.legend.include_in_layout = False
         chart.legend.font.size = Pt(9)
-    # Colour the series.
+        chart.legend.font.color.rgb = AXIS_TEXT
+    # Colour the series (the extra target series is styled by
+    # _series_to_target_line below).
     for i, plot_series in enumerate(chart.series):
+        if i >= len(series):
+            break
         _, _, color = series[i]
         if color is not None:
             fmt = plot_series.format
             fmt.fill.solid(); fmt.fill.fore_color.rgb = color
             if chart_type == XL_CHART_TYPE.LINE:
                 plot_series.format.line.color.rgb = color
-    # Axis label sizing so dense day-of-month categories stay readable.
+    # Axis styling: readable light labels on the dark background (the Office
+    # default is near-black), subtle gridlines, thousands separators on request,
+    # small fonts so dense day-of-month categories stay legible.
     try:
-        chart.category_axis.tick_labels.font.size = Pt(cat_font)
-        chart.value_axis.tick_labels.font.size = Pt(9)
+        cat_ax, val_ax = chart.category_axis, chart.value_axis
+        cat_ax.tick_labels.font.size = Pt(cat_font)
+        cat_ax.tick_labels.font.color.rgb = AXIS_TEXT
+        cat_ax.format.line.color.rgb = GRID
+        val_ax.tick_labels.font.size = Pt(9)
+        val_ax.tick_labels.font.color.rgb = AXIS_TEXT
+        val_ax.format.line.color.rgb = GRID
+        if val_format:
+            val_ax.tick_labels.number_format = val_format
+            val_ax.tick_labels.number_format_is_linked = False
+        val_ax.has_major_gridlines = True
+        gl = val_ax.major_gridlines.format.line
+        gl.color.rgb = GRID
+        gl.width = Pt(0.75)
     except Exception:  # pragma: no cover - some chart types lack an axis
         pass
+    if target is not None:
+        _series_to_target_line(chart)
     return chart
 
 
@@ -219,16 +293,29 @@ def _title_slide(prs, trend: TrendData):
     return s
 
 
+def _daily_target(targets: dict, keys, month_key: str):
+    """The month's volume target(s) pro-rated to a per-day pace — the flat
+    'target' line drawn over the daily charts. None when no target is set."""
+    total = sum(targets.get(k) or 0 for k in keys)
+    if not total:
+        return None
+    y, mn = (int(x) for x in month_key.split("-"))
+    return round(total / calendar.monthrange(y, mn)[1])
+
+
 def _month_production_slide(prs, month: MonthData, targets: dict, ai_note=None):
-    s = _slide_header(prs, f"{month.label} — Production Performance",
-                      "Daily forming machine output")
+    tgt = _daily_target(targets, ("prod_30", "prod_12"), month.key)
+    sub = "Daily forming machine output"
+    if tgt:
+        sub += f" · target pace {_fmt(tgt)} trays/day"
+    s = _slide_header(prs, f"{month.label} — Production Performance", sub)
     m = month.metrics
-    # Daily output chart (left).
+    # Daily output chart (left) with the monthly target pro-rated per day.
     cats = [d["day"] for d in month.by_day] or ["—"]
     vals = [round(d["qty"]) for d in month.by_day] or [0]
     _chart(s, XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(0.85), Inches(1.7),
            Inches(7.6), Inches(4.9), cats, [("Trays", vals, AMBER)],
-           cat_font=8)
+           cat_font=8, val_format="#,##0", legend=tgt is not None, target=tgt)
 
     # KPI tiles (right column).
     tx, tw, th, gap = Inches(8.75), Inches(3.7), Inches(0.74), Inches(0.14)
@@ -279,15 +366,17 @@ def _month_downtime_slide(prs, month: MonthData, ai_note=None):
     return s
 
 
-def _month_fuel_slide(prs, month: MonthData, ai_note=None):
+def _month_fuel_slide(prs, month: MonthData, targets: dict, ai_note=None):
     m = month.metrics
+    tgt = _daily_target(targets, ("diesel",), month.key)
     s = _slide_header(prs, f"{month.label} — Diesel Fuel Consumption",
                       f"{_fmt(m['total_fuel'])} L burned · {_fmt(m['fuel_eff'])} L per 1,000 trays")
     cats = [d["day"] for d in month.by_day] or ["—"]
     vals = [round(d["fuel"]) for d in month.by_day] or [0]
     _chart(s, XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(0.85), Inches(1.7),
            Inches(8.2), Inches(4.9), cats, [("Diesel (L)", vals, BLUE)],
-           cat_font=8)
+           cat_font=8, val_format="#,##0", legend=tgt is not None,
+           target=tgt, target_name="Daily budget")
     tx, tw, th = Inches(9.35), Inches(3.1), Inches(1.2)
     _tile(s, tx, Inches(1.8), tw, th, _fmt(m["total_fuel"]), "Total diesel (L)", BLUE)
     _tile(s, tx, Inches(3.2), tw, th, _fmt(m["fuel_eff"]), "L / 1,000 trays", AMBER)
@@ -304,7 +393,7 @@ def _trend_comparison_slide(prs, trend: TrendData, overall_summary=None):
     qty = [m.metrics["total_qty"] for m in trend.months]
     _chart(s, XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(0.85), Inches(1.7),
            Inches(6.6), Inches(5.0), labels, [("Total trays", qty, AMBER)],
-           cat_font=11)
+           cat_font=11, val_format="#,##0")
     # Metrics table.
     rows = []
     for m in trend.months:
@@ -455,7 +544,7 @@ def build_report_pptx(
             notes = month_notes.get(month.key, {}) if isinstance(month_notes, dict) else {}
             _month_production_slide(prs, month, trend.targets, notes.get("production"))
             _month_downtime_slide(prs, month, notes.get("downtime"))
-            _month_fuel_slide(prs, month, notes.get("fuel"))
+            _month_fuel_slide(prs, month, trend.targets, notes.get("fuel"))
         # Cross-month summary slides (only meaningful for 2+ months).
         if trend.multi:
             _trend_comparison_slide(prs, trend, narrative.get("overall_summary"))

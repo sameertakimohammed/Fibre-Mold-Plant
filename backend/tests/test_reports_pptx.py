@@ -93,6 +93,28 @@ def test_pptx_includes_ai_narrative_when_enabled(client, admin_headers, monkeypa
     assert "Trial new mesh." in text          # action line rendered
 
 
+def test_pptx_charts_have_target_line_and_light_axes(client, admin_headers):
+    """The daily production chart carries a flat 'Daily target' line (the
+    monthly volume targets pro-rated per day, drawn as a c:lineChart overlaid
+    on the columns) and light axis tick labels readable on the dark slides."""
+    _seed_two_months(client, admin_headers)
+    r = client.get("/api/v1/reports/report.pptx", headers=admin_headers,
+                   params={"start": "2024-01-01", "end": "2024-01-31", "period": "Monthly"})
+    assert r.status_code == 200, r.text
+
+    prs = Presentation(io.BytesIO(r.content))
+    charts = [sh.chart for s in prs.slides for sh in s.shapes if sh.has_chart]
+    assert charts, "deck has no charts"
+    xmls = [c._chartSpace.xml for c in charts]
+    # Production chart: bar plot + overlaid target line named after the series.
+    prod = next(x for x in xmls if "Daily target" in x)
+    assert "<c:lineChart>" in prod and "<c:barChart>" in prod
+    # Diesel chart gets its own pro-rated budget line.
+    assert any("Daily budget" in x for x in xmls)
+    # Axis tick labels are recoloured for the dark background on every chart.
+    assert all('val="C8D0DA"' in x for x in xmls)
+
+
 def test_pptx_single_month_omits_trend_slides(client, admin_headers):
     _seed_two_months(client, admin_headers)
     r = client.get("/api/v1/reports/report.pptx", headers=admin_headers,
